@@ -5,12 +5,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.wear.compose.foundation.pager.HorizontalPager
+import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.*
 import com.example.pomodorotimer.presentation.theme.PomodoroTimerTheme
 import kotlinx.coroutines.delay
@@ -19,9 +19,28 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+// Inside MainActivity's setContent { ... }
             PomodoroTimerTheme {
+                val viewModel: PomodoroViewModel = viewModel()
+                val pagerState = rememberPagerState(pageCount = { 2 })
+
                 AppScaffold {
-                    PomodoroScreen()
+                    HorizontalPagerScaffold(
+                        pagerState = pagerState,
+                        pageIndicator = {
+                            HorizontalPageIndicator(pagerState = pagerState)
+                        }
+                    ) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            when (page) {
+                                0 -> PomodoroScreen(viewModel)
+                                1 -> SettingsScreen(viewModel)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -29,7 +48,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PomodoroScreen(viewModel: PomodoroViewModel = viewModel()) {
+fun PomodoroScreen(viewModel: PomodoroViewModel) {
     // 1. State: What changes in our app?
     val timeLeft = viewModel.timeLeft
     val session = viewModel.currentSession

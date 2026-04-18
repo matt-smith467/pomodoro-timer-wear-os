@@ -10,19 +10,13 @@ on:
         description: 'Version Name (e.g. 1.0.1)'
         required: true
         default: '1.0.0'
-  workflow_run:
-    workflows: ["Android CI"]
-    branches: [main]
-    types:
-      - completed
 
 jobs:
   release:
-    # Only run if triggered by a tag, a manual dispatch, OR a successful Android CI run
+    # Only run if triggered by a tag or a manual dispatch
     if: >
       github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

@@ -31,15 +31,25 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "Checking latest 'Android CI' run on main..."
-        CONCLUSION=$(gh run list --workflow "Android CI" --branch main --status completed --limit 1 --json conclusion --jq '.[0].conclusion')
+        echo "Verifying latest 'Android CI' status on main..."
+        # Get the status/conclusion of the absolute latest run on main
+        LATEST_RUN=$(gh run list --workflow "Android CI" --branch main --limit 1 --json status,conclusion)
+        STATUS=$(echo $LATEST_RUN | jq -r '.[0].status')
+        CONCLUSION=$(echo $LATEST_RUN | jq -r '.[0].conclusion')
         
-        if [ "$CONCLUSION" != "success" ]; then
-          echo "❌ The latest CI run on main was '$CONCLUSION'. Release aborted."
-          echo "Please ensure the latest build on main is passing before releasing."
+        echo "Latest run status: $STATUS"
+        echo "Latest run conclusion: $CONCLUSION"
+
+        if [ "$STATUS" != "completed" ]; then
+          echo "❌ The latest CI run on main is still '$STATUS'. Please wait for it to finish."
           exit 1
         fi
-        echo "✅ Latest CI on main passed."
+
+        if [ "$CONCLUSION" != "success" ]; then
+          echo "❌ The latest CI run on main failed ('$CONCLUSION'). Release aborted."
+          exit 1
+        fi
+        echo "✅ CI on main is green."
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4

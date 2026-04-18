@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import java.lang.ref.WeakReference
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -17,41 +16,51 @@ import androidx.lifecycle.viewModelScope
 import com.example.pomodorotimer.data.TimerDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 
 enum class SessionType { WORK, SHORT_REST, LONG_REST }
 
 class PomodoroViewModel(application: Application) : AndroidViewModel(application) {
-
     private val dataStore = TimerDataStore(application)
     private var serviceRef = WeakReference<TimerService?>(null)
 
     // ── UI state ──────────────────────────────────────────────────────────────
 
-    var isBound        by mutableStateOf(false)         ; private set
-    var timeLeft       by mutableLongStateOf(0L)
-    var isRunning      by mutableStateOf(false)
+    var isBound by mutableStateOf(false)
+        private set
+    var timeLeft by mutableLongStateOf(0L)
+    var isRunning by mutableStateOf(false)
     var currentSession by mutableStateOf(SessionType.WORK)
-    var cycleCount     by mutableIntStateOf(1)
+    var cycleCount by mutableIntStateOf(1)
 
-    var workLengthMinutes      by mutableIntStateOf(25) ; private set
-    var shortRestLengthMinutes by mutableIntStateOf(5)  ; private set
-    var longRestLengthMinutes  by mutableIntStateOf(15) ; private set
-    var autoStartNextSession   by mutableStateOf(false) ; private set
+    var workLengthMinutes by mutableIntStateOf(25)
+        private set
+    var shortRestLengthMinutes by mutableIntStateOf(5)
+        private set
+    var longRestLengthMinutes by mutableIntStateOf(15)
+        private set
+    var autoStartNextSession by mutableStateOf(false)
+        private set
 
     // ── Service connection ────────────────────────────────────────────────────
 
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            val service = (binder as TimerService.TimerBinder).getService()
-            serviceRef = WeakReference(service)
-            isBound = true
-            observeService(service)
+    private val connection =
+        object : ServiceConnection {
+            override fun onServiceConnected(
+                name: ComponentName?,
+                binder: IBinder?,
+            ) {
+                val service = (binder as TimerService.TimerBinder).getService()
+                serviceRef = WeakReference(service)
+                isBound = true
+                observeService(service)
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                isBound = false
+                serviceRef.clear()
+            }
         }
-        override fun onServiceDisconnected(name: ComponentName?) {
-            isBound = false
-            serviceRef.clear()
-        }
-    }
 
     init {
         // Bind to service. BIND_AUTO_CREATE starts it if not already running.
@@ -65,32 +74,38 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val state = dataStore.timerState.first()
             if (!isBound) {
-                timeLeft       = state.timeLeft
-                isRunning      = state.isRunning
-                currentSession = try { SessionType.valueOf(state.currentSession) }
-                                 catch (_: Exception) { SessionType.WORK }
-                cycleCount     = state.cycleCount
+                timeLeft = state.timeLeft
+                isRunning = state.isRunning
+                currentSession =
+                    try {
+                        SessionType.valueOf(state.currentSession)
+                    } catch (
+                        _: Exception,
+                    ) {
+                        SessionType.WORK
+                    }
+                cycleCount = state.cycleCount
             }
             // Settings: read once for the initial value, then keep a live observer below.
-            workLengthMinutes      = dataStore.workLengthMinutes.first()
+            workLengthMinutes = dataStore.workLengthMinutes.first()
             shortRestLengthMinutes = dataStore.shortRestLengthMinutes.first()
-            longRestLengthMinutes  = dataStore.longRestLengthMinutes.first()
-            autoStartNextSession   = dataStore.autoStartNextSession.first()
+            longRestLengthMinutes = dataStore.longRestLengthMinutes.first()
+            autoStartNextSession = dataStore.autoStartNextSession.first()
         }
 
         // Live observers for settings changes (e.g., user changes duration in settings screen).
-        viewModelScope.launch { dataStore.workLengthMinutes.collect      { workLengthMinutes      = it } }
+        viewModelScope.launch { dataStore.workLengthMinutes.collect { workLengthMinutes = it } }
         viewModelScope.launch { dataStore.shortRestLengthMinutes.collect { shortRestLengthMinutes = it } }
-        viewModelScope.launch { dataStore.longRestLengthMinutes.collect  { longRestLengthMinutes  = it } }
-        viewModelScope.launch { dataStore.autoStartNextSession.collect   { autoStartNextSession   = it } }
+        viewModelScope.launch { dataStore.longRestLengthMinutes.collect { longRestLengthMinutes = it } }
+        viewModelScope.launch { dataStore.autoStartNextSession.collect { autoStartNextSession = it } }
     }
 
     private fun observeService(svc: TimerService) {
         // Each collect overwrites the DataStore preload with the live service value.
-        viewModelScope.launch { svc.timeLeft.collect       { timeLeft       = it } }
-        viewModelScope.launch { svc.isRunning.collect      { isRunning      = it } }
+        viewModelScope.launch { svc.timeLeft.collect { timeLeft = it } }
+        viewModelScope.launch { svc.isRunning.collect { isRunning = it } }
         viewModelScope.launch { svc.currentSession.collect { currentSession = it } }
-        viewModelScope.launch { svc.cycleCount.collect     { cycleCount     = it } }
+        viewModelScope.launch { svc.cycleCount.collect { cycleCount = it } }
     }
 
     // ── Actions ───────────────────────────────────────────────────────────────
@@ -106,18 +121,26 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         serviceRef.get()?.toggleTimer()
     }
 
-    fun resetAll() { serviceRef.get()?.resetTimer(workLengthMinutes) }
-    fun skipNext() { serviceRef.get()?.skipNext() }
+    fun resetAll() {
+        serviceRef.get()?.resetTimer(workLengthMinutes)
+    }
+
+    fun skipNext() {
+        serviceRef.get()?.skipNext()
+    }
 
     fun updateWorkLength(minutes: Int) {
         viewModelScope.launch { dataStore.saveWorkLength(maxOf(1, minutes)) }
     }
+
     fun updateShortRestLength(minutes: Int) {
         viewModelScope.launch { dataStore.saveShortRestLength(maxOf(1, minutes)) }
     }
+
     fun updateLongRestLength(minutes: Int) {
         viewModelScope.launch { dataStore.saveLongRestLength(maxOf(1, minutes)) }
     }
+
     fun updateAutoStartNextSession(enabled: Boolean) {
         viewModelScope.launch { dataStore.saveAutoStartNextSession(enabled) }
     }

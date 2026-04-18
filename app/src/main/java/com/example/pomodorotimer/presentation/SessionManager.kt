@@ -3,13 +3,13 @@ package com.example.pomodorotimer.presentation
 data class SessionState(
     val type: SessionType,
     val cycle: Int,
-    val timeLeftSeconds: Long
+    val timeLeftSeconds: Long,
 )
 
 class SessionManager(
     var workLenMin: Int = 25,
     var shortRestLenMin: Int = 5,
-    var longRestLenMin: Int = 15
+    var longRestLenMin: Int = 15,
 ) {
     fun nextSession(currentState: SessionState): SessionState {
         val finished = currentState.type
@@ -30,6 +30,6 @@ class SessionManager(
             }
         }
     }
-    
+
     fun getInitialState() = SessionState(SessionType.WORK, 1, workLenMin * 60L)
 }

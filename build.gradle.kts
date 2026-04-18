@@ -5,21 +5,18 @@ plugins {
     id("com.diffplug.spotless") version "6.25.0"
 }
 
-subprojects {
-    apply(plugin = "com.diffplug.spotless")
-    configure<com.diffplug.gradle.spotless.SpotlessExtension> {
-        kotlin {
-            target("**/*.kt")
-            targetExclude("${layout.buildDirectory}/**/*.kt")
-            ktlint("1.2.1")
-            trimTrailingWhitespace()
-            endWithNewline()
-        }
-        kotlinGradle {
-            target("**/*.kts")
-            targetExclude("${layout.buildDirectory}/**/*.kts")
-            ktlint("1.2.1")
-        }
+spotless {
+    kotlin {
+        target("**/*.kt")
+        targetExclude("${layout.buildDirectory}/**/*.kt")
+        ktlint("1.2.1")
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    kotlinGradle {
+        target("**/*.kts")
+        targetExclude("${layout.buildDirectory}/**/*.kts")
+        ktlint("1.2.1")
     }
 }
 

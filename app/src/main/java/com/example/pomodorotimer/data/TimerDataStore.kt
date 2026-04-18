@@ -20,7 +20,7 @@ data class TimerState(
     val targetEndTime: Long,
     val timeLeft: Long,
     val currentSession: String,
-    val cycleCount: Int
+    val cycleCount: Int,
 )
 
 class TimerDataStore(private val context: Context) {
@@ -34,33 +34,44 @@ class TimerDataStore(private val context: Context) {
     private val currentSessionKey = stringPreferencesKey("current_session")
     private val cycleCountKey = intPreferencesKey("cycle_count")
 
-    val workLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[workLengthKey] ?: 25
-    }.distinctUntilChanged()
+    val workLengthMinutes: Flow<Int> =
+        context.dataStore.data.map { preferences ->
+            preferences[workLengthKey] ?: 25
+        }.distinctUntilChanged()
 
-    val shortRestLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[shortRestLengthKey] ?: 5
-    }.distinctUntilChanged()
+    val shortRestLengthMinutes: Flow<Int> =
+        context.dataStore.data.map { preferences ->
+            preferences[shortRestLengthKey] ?: 5
+        }.distinctUntilChanged()
 
-    val longRestLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[longRestLengthKey] ?: 15
-    }.distinctUntilChanged()
+    val longRestLengthMinutes: Flow<Int> =
+        context.dataStore.data.map { preferences ->
+            preferences[longRestLengthKey] ?: 15
+        }.distinctUntilChanged()
 
-    val autoStartNextSession: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[autoStartNextSessionKey] ?: false
-    }.distinctUntilChanged()
+    val autoStartNextSession: Flow<Boolean> =
+        context.dataStore.data.map { preferences ->
+            preferences[autoStartNextSessionKey] ?: false
+        }.distinctUntilChanged()
 
-    val timerState: Flow<TimerState> = context.dataStore.data.map { preferences ->
-        TimerState(
-            isRunning = preferences[isRunningKey] ?: false,
-            targetEndTime = preferences[targetEndTimeKey] ?: 0L,
-            timeLeft = preferences[timeLeftKey] ?: (25 * 60L),
-            currentSession = preferences[currentSessionKey] ?: "WORK",
-            cycleCount = preferences[cycleCountKey] ?: 1
-        )
-    }
+    val timerState: Flow<TimerState> =
+        context.dataStore.data.map { preferences ->
+            TimerState(
+                isRunning = preferences[isRunningKey] ?: false,
+                targetEndTime = preferences[targetEndTimeKey] ?: 0L,
+                timeLeft = preferences[timeLeftKey] ?: (25 * 60L),
+                currentSession = preferences[currentSessionKey] ?: "WORK",
+                cycleCount = preferences[cycleCountKey] ?: 1,
+            )
+        }
 
-    suspend fun saveTimerState(isRunning: Boolean, targetEndTime: Long, timeLeft: Long, session: String, cycle: Int) {
+    suspend fun saveTimerState(
+        isRunning: Boolean,
+        targetEndTime: Long,
+        timeLeft: Long,
+        session: String,
+        cycle: Int,
+    ) {
         context.dataStore.edit { preferences ->
             preferences[isRunningKey] = isRunning
             preferences[targetEndTimeKey] = targetEndTime

@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.CheckboxButton
@@ -25,8 +24,6 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.IconButton
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.IconButtonDefaults
-import androidx.wear.compose.material3.FilledIconButton
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import com.example.pomodorotimer.R
 
@@ -34,61 +31,67 @@ import com.example.pomodorotimer.R
 fun SettingsScreen(viewModel: PomodoroViewModel) {
     val scrollState = rememberScrollState()
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 10.dp, vertical = 40.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 10.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             "Settings",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 8.dp),
         )
 
         // Work Setting
         InlineSetting(
             label = "Work session",
             value = viewModel.workLengthMinutes,
-            onValueChange = { viewModel.updateWorkLength(it) }
+            onValueChange = { viewModel.updateWorkLength(it) },
         )
 
         // Short Rest Setting
         InlineSetting(
             label = "Short break",
             value = viewModel.shortRestLengthMinutes,
-            onValueChange = { viewModel.updateShortRestLength(it) }
+            onValueChange = { viewModel.updateShortRestLength(it) },
         )
 
         // Long Rest Setting
         InlineSetting(
             label = "Long break",
             value = viewModel.longRestLengthMinutes,
-            onValueChange = { viewModel.updateLongRestLength(it) }
+            onValueChange = { viewModel.updateLongRestLength(it) },
         )
 
         CheckboxButton(
             checked = viewModel.autoStartNextSession,
             onCheckedChange = { viewModel.updateAutoStartNextSession(it) },
             label = { Text("Auto-start next") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
 
 @Composable
-fun InlineSetting(label: String, value: Int, onValueChange: (Int) -> Unit) {
+fun InlineSetting(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp) // Standard height to match CheckboxButton
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(start = 14.dp, end = 6.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(52.dp) // Standard height to match CheckboxButton
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .padding(start = 14.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
             label,
@@ -96,24 +99,25 @@ fun InlineSetting(label: String, value: Int, onValueChange: (Int) -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            modifier =
+                Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {
             IconButton(
                 onClick = { if (value > 1) onValueChange(value - 1) },
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(38.dp),
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_remove),
                     contentDescription = "Decrease",
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -121,18 +125,18 @@ fun InlineSetting(label: String, value: Int, onValueChange: (Int) -> Unit) {
                 "$value",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 2.dp)
+                modifier = Modifier.padding(horizontal = 2.dp),
             )
 
             IconButton(
                 onClick = { if (value < 99) onValueChange(value + 1) },
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(38.dp),
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_add),
                     contentDescription = "Increase",
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -143,14 +147,16 @@ fun InlineSetting(label: String, value: Int, onValueChange: (Int) -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<PomodoroViewModel>(
-        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return PomodoroViewModel(context.applicationContext as android.app.Application) as T
-            }
-        }
-    )
+    val viewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel<PomodoroViewModel>(
+            factory =
+                object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        return PomodoroViewModel(context.applicationContext as android.app.Application) as T
+                    }
+                },
+        )
     com.example.pomodorotimer.presentation.theme.PomodoroTimerTheme {
         SettingsScreen(viewModel = viewModel)
     }

@@ -1,5 +1,6 @@
 package com.example.pomodorotimer.presentation
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,49 +11,68 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.os.Vibrator
 import android.os.VibrationEffect
+import android.os.Vibrator
+import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
 import com.example.pomodorotimer.R
 import com.example.pomodorotimer.data.TimerDataStore
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class TimerService : Service() {
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    private val _timeLeft       = MutableStateFlow(0L)
+    private val _isRunning      = MutableStateFlow(false)
+    private val _currentSession = MutableStateFlow(SessionType.WORK)
+    private val _cycleCount     = MutableStateFlow(1)
+
+    val timeLeft:       StateFlow<Long>        = _timeLeft.asStateFlow()
+    val isRunning:      StateFlow<Boolean>     = _isRunning.asStateFlow()
+    val currentSession: StateFlow<SessionType> = _currentSession.asStateFlow()
+    val cycleCount:     StateFlow<Int>         = _cycleCount.asStateFlow()
+
+    // ── Infrastructure ────────────────────────────────────────────────────────
+
     private val binder = TimerBinder()
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+
+    // CoroutineExceptionHandler is critical: without it, any uncaught exception in a
+    // SupervisorJob child coroutine crashes the app via Thread.defaultUncaughtExceptionHandler.
+    private val serviceScope = CoroutineScope(
+        Dispatchers.Main + SupervisorJob() +
+        CoroutineExceptionHandler { _, t -> Log.e(TAG, "Coroutine error", t) }
+    )
+
     private var timerJob: Job? = null
     private lateinit var dataStore: TimerDataStore
+    private lateinit var nm: NotificationManager
 
-    private val _timeLeft = MutableStateFlow(0L)
-    val timeLeft: StateFlow<Long> = _timeLeft
-
-    private val _isRunning = MutableStateFlow(false)
-    val isRunning: StateFlow<Boolean> = _isRunning
-
-    private val _currentSession = MutableStateFlow(SessionType.WORK)
-    val currentSession: StateFlow<SessionType> = _currentSession
-
-    private val _cycleCount = MutableStateFlow(1)
-    val cycleCount: StateFlow<Int> = _cycleCount
-
+    // Tracks how many clients are bound. When 0, app is not visible → post alert notification.
+    // When > 0, app is visible → just vibrate, UI will update itself.
     private var boundClients = 0
 
-    private fun vibrate() {
-        val vibrator = getSystemService(Vibrator::class.java)
-        val effect = VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500), -1)
-        vibrator.vibrate(effect)
-    }
+    private var targetEndTime = 0L
+
+    // Settings cache — updated by collectors in onCreate so hot paths need no DataStore reads.
+    private var workLen    = 25
+    private var shortLen   = 5
+    private var longLen    = 15
+    private var autoStart  = false
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -64,90 +84,110 @@ class TimerService : Service() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        boundClients--
-        return super.onUnbind(intent)
+        boundClients = maxOf(0, boundClients - 1)
+        return false
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
-    }
-
-    private var targetEndTime = 0L
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onCreate() {
         super.onCreate()
         dataStore = TimerDataStore(applicationContext)
-        createNotificationChannel()
-        
+        nm        = getSystemService(NotificationManager::class.java)
+        createChannels()
+
         serviceScope.launch {
+            // Collectors run for the lifetime of this coroutine (and the service).
+            // They keep the settings cache fresh with zero DataStore reads in hot paths.
+            launch { 
+                dataStore.workLengthMinutes.collect { 
+                    if (it != workLen) {
+                        workLen = it
+                        refreshIdleTime()
+                    }
+                } 
+            }
+            launch { 
+                dataStore.shortRestLengthMinutes.collect { 
+                    if (it != shortLen) {
+                        shortLen = it
+                        refreshIdleTime()
+                    }
+                } 
+            }
+            launch { 
+                dataStore.longRestLengthMinutes.collect { 
+                    if (it != longLen) {
+                        longLen = it
+                        refreshIdleTime()
+                    }
+                } 
+            }
+            launch { dataStore.autoStartNextSession.collect { autoStart = it } }
+
+            // Restore persisted timer state. By the time this suspends and resumes,
+            // the settings collectors above will have emitted their first values.
             val state = dataStore.timerState.first()
-            _isRunning.value = state.isRunning
-            _currentSession.value = SessionType.valueOf(state.currentSession)
+            _currentSession.value = try { SessionType.valueOf(state.currentSession) }
+                                    catch (_: IllegalArgumentException) { SessionType.WORK }
             _cycleCount.value = state.cycleCount
-            
+
             if (state.isRunning) {
                 targetEndTime = state.targetEndTime
-                val remaining = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000)
+                val remaining = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000L)
                 _timeLeft.value = remaining
-                if (remaining > 0) {
-                    startTimer()
-                } else {
-                    onTimerFinished()
-                }
+                if (remaining > 0L) startTimer() else onTimerFinished()
             } else {
                 _timeLeft.value = state.timeLeft
-            }
-
-            // Observe settings changes (only fire if the value actually changes)
-            launch {
-                dataStore.workLengthMinutes.distinctUntilChanged().drop(1).collect { workLen ->
-                    if (!_isRunning.value && _currentSession.value == SessionType.WORK) {
-                        _timeLeft.value = workLen * 60L
-                    }
-                }
-            }
-            launch {
-                dataStore.shortRestLengthMinutes.distinctUntilChanged().drop(1).collect { shortLen ->
-                    if (!_isRunning.value && _currentSession.value == SessionType.SHORT_REST) {
-                        _timeLeft.value = shortLen * 60L
-                    }
-                }
-            }
-            launch {
-                dataStore.longRestLengthMinutes.distinctUntilChanged().drop(1).collect { longLen ->
-                    if (!_isRunning.value && _currentSession.value == SessionType.LONG_REST) {
-                        _timeLeft.value = longLen * 60L
-                    }
-                }
             }
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    fun toggleTimer() {
+        if (_isRunning.value) pauseTimer() else startTimer()
+    }
+
+    fun skipNext() {
+        onTimerFinished()
+    }
+
+    fun resetTimer(workLength: Int) {
+        timerJob?.cancel()
+        timerJob = null
+        _isRunning.value     = false
+        targetEndTime        = 0L
+        _currentSession.value = SessionType.WORK
+        _cycleCount.value    = 1
+        _timeLeft.value      = workLength * 60L
+        stopForegroundSafely()
+        saveState()
+    }
+
+    // ── Timer logic ───────────────────────────────────────────────────────────
+
     private fun startTimer() {
         timerJob?.cancel()
         _isRunning.value = true
-        // Only set targetEndTime if we're starting fresh, not recovering
+
         if (targetEndTime <= System.currentTimeMillis()) {
-            targetEndTime = System.currentTimeMillis() + (_timeLeft.value * 1000)
+            targetEndTime = System.currentTimeMillis() + (_timeLeft.value * 1000L)
         }
-        
-        val notification = createNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+
+        startForegroundCompat(buildTimerNotification())
         saveState()
 
         timerJob = serviceScope.launch {
-            while (_isRunning.value) {
-                val remaining = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000)
-                if (remaining != _timeLeft.value) {
-                    _timeLeft.value = remaining
-                    updateNotification()
-                }
-                
-                if (remaining <= 0) {
+            while (true) {
+                val remaining = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000L)
+                if (remaining != _timeLeft.value) _timeLeft.value = remaining
+                if (remaining == 0L) {
                     onTimerFinished()
                     break
                 }
@@ -156,205 +196,204 @@ class TimerService : Service() {
         }
     }
 
-    fun toggleTimer() {
-        if (_isRunning.value) {
-            pauseTimer()
-        } else {
-            startTimer()
-        }
-    }
-
     private fun pauseTimer() {
-        _isRunning.value = false
         timerJob?.cancel()
-        
-        // Capture remaining time before clearing target
-        if (targetEndTime > 0) {
-            _timeLeft.value = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000)
+        timerJob = null
+        _isRunning.value = false
+        if (targetEndTime > 0L) {
+            _timeLeft.value = maxOf(0L, (targetEndTime - System.currentTimeMillis()) / 1000L)
         }
         targetEndTime = 0L
-        
-        stopForeground(STOP_FOREGROUND_DETACH)
+        stopForegroundSafely()
         saveState()
     }
 
-    fun resetTimer(workLength: Int) {
-        _isRunning.value = false
-        timerJob?.cancel()
-        targetEndTime = 0L
-        
-        _currentSession.value = SessionType.WORK
-        _cycleCount.value = 1
-        _timeLeft.value = workLength * 60L
-        
-        stopForeground(STOP_FOREGROUND_DETACH)
-        saveState()
-    }
-
-    fun skipNext() {
-        onTimerFinished()
-    }
-
+    // Fully synchronous — no coroutine, no DataStore reads. Uses cached settings.
+    // Can be safely called from the timer coroutine or directly from skipNext().
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun onTimerFinished() {
-        _isRunning.value = false
         timerJob?.cancel()
-        targetEndTime = 0L
-        
-        serviceScope.launch {
-            val workLen = dataStore.workLengthMinutes.first()
-            val shortLen = dataStore.shortRestLengthMinutes.first()
-            val longLen = dataStore.longRestLengthMinutes.first()
+        timerJob = null
+        val wasRunning    = _isRunning.value
+        _isRunning.value  = false
+        targetEndTime     = 0L
 
-            val current = _currentSession.value
-            val cycle = _cycleCount.value
-            
-            val finishedSessionName = when(current) {
-                SessionType.WORK -> "Work session"
-                SessionType.SHORT_REST -> "Short break"
-                SessionType.LONG_REST -> "Long break"
-            }
+        vibrate()
 
-            // Determine next session type
-            if (current == SessionType.WORK) {
-                if (cycle >= 4) {
-                    _currentSession.value = SessionType.LONG_REST
-                    _timeLeft.value = longLen * 60L
-                } else {
-                    _currentSession.value = SessionType.SHORT_REST
-                    _timeLeft.value = shortLen * 60L
-                }
-            } else {
-                if (current == SessionType.LONG_REST) {
-                    _currentSession.value = SessionType.WORK
-                    _cycleCount.value = 1
-                } else {
-                    _currentSession.value = SessionType.WORK
-                    _cycleCount.value = cycle + 1
-                }
-                _timeLeft.value = workLen * 60L
-            }
-            
-            saveState()
-            
-            val autoStart = dataStore.autoStartNextSession.first()
-            val nextSessionName = when(_currentSession.value) {
-                SessionType.WORK -> "work"
-                SessionType.SHORT_REST -> "short break"
-                SessionType.LONG_REST -> "long break"
-            }
+        val finished = _currentSession.value
+        val cycle    = _cycleCount.value
 
-            // Notify User
-            if (boundClients == 0) {
-                val manager = getSystemService(NotificationManager::class.java)
-                val alertTitle = "$finishedSessionName complete!"
-                val alertText = if (autoStart) {
-                    "Next $nextSessionName started."
-                } else {
-                    "Tap to start $nextSessionName."
-                }
-                manager.notify(ALERT_NOTIFICATION_ID, createNotification(alertTitle, alertText))
-            } else {
-                vibrate()
-            }
+        val finishedName = when (finished) {
+            SessionType.WORK       -> "Work session"
+            SessionType.SHORT_REST -> "Short break"
+            SessionType.LONG_REST  -> "Long break"
+        }
 
-            if (autoStart) {
-                delay(500) // Small delay to feel vibration
+        // Advance session state using cached settings — zero async operations.
+        when {
+            finished == SessionType.WORK && cycle >= 4 -> {
+                _currentSession.value = SessionType.LONG_REST
+                _timeLeft.value       = longLen * 60L
+            }
+            finished == SessionType.WORK -> {
+                _currentSession.value = SessionType.SHORT_REST
+                _timeLeft.value       = shortLen * 60L
+            }
+            finished == SessionType.LONG_REST -> {
+                _currentSession.value = SessionType.WORK
+                _cycleCount.value     = 1
+                _timeLeft.value       = workLen * 60L
+            }
+            else -> { // SHORT_REST
+                _currentSession.value = SessionType.WORK
+                _cycleCount.value     = cycle + 1
+                _timeLeft.value       = workLen * 60L
+            }
+        }
+
+        saveState()
+
+        if (wasRunning && autoStart) {
+            // Keep the foreground service running; replace the notification with the next session.
+            serviceScope.launch {
+                delay(300L)
                 startTimer()
-            } else {
-                stopForeground(STOP_FOREGROUND_REMOVE)
             }
+        } else {
+            // Remove foreground + ongoing activity.
+            stopForegroundSafely()
+            
+            val nextName = when (_currentSession.value) {
+                SessionType.WORK       -> "Work"
+                SessionType.SHORT_REST -> "Short break"
+                SessionType.LONG_REST  -> "Long break"
+            }
+            try {
+                nm.notify(ALERT_ID, buildAlertNotification("$finishedName complete!", "Next: $nextName"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to post alert notification", e)
+            }
+        }
+    }
+
+    // Updates the displayed time when settings change and the timer is idle.
+    private fun refreshIdleTime() {
+        if (_isRunning.value) return
+        _timeLeft.value = when (_currentSession.value) {
+            SessionType.WORK       -> workLen  * 60L
+            SessionType.SHORT_REST -> shortLen * 60L
+            SessionType.LONG_REST  -> longLen  * 60L
+        }
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun stopForegroundSafely() {
+        try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (e: Exception) {
+            Log.e(TAG, "stopForeground failed", e)
+        }
+    }
+
+    private fun buildTimerNotification(): Notification {
+        val pi = pendingMainIntent()
+        val label = when (_currentSession.value) {
+            SessionType.WORK       -> "Work"
+            SessionType.SHORT_REST -> "Break"
+            SessionType.LONG_REST  -> "Long break"
+        }
+        val builder = NotificationCompat.Builder(this, TIMER_CHANNEL)
+            .setContentTitle("Pomodoro Timer")
+            .setContentText("$label: ${formatTime(_timeLeft.value)}")
+            .setSmallIcon(R.drawable.ic_ongoing_activity)
+            .setContentIntent(pi)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        OngoingActivity.Builder(applicationContext, NOTIFICATION_ID, builder)
+            .setAnimatedIcon(R.drawable.ic_ongoing_activity)
+            .setStaticIcon(R.drawable.ic_ongoing_activity)
+            .setTouchIntent(pi)
+            .setStatus(
+                Status.Builder()
+                    .addTemplate("$label: #time#")
+                    .addPart("time", Status.TimerPart(targetEndTime))
+                    .build()
+            )
+            .build()
+            .apply(applicationContext)
+
+        return builder.build()
+    }
+
+    private fun buildAlertNotification(title: String, text: String): Notification =
+        NotificationCompat.Builder(this, ALERT_CHANNEL)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(R.drawable.ic_ongoing_activity)
+            .setContentIntent(pendingMainIntent())
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVibrate(longArrayOf(0, 500, 200, 500))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+    private fun pendingMainIntent() = PendingIntent.getActivity(
+        this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun createChannels() {
+        nm.createNotificationChannel(
+            NotificationChannel(TIMER_CHANNEL, "Timer", NotificationManager.IMPORTANCE_LOW)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(ALERT_CHANNEL, "Session Alerts", NotificationManager.IMPORTANCE_HIGH).apply {
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 200, 500)
+            }
+        )
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    @RequiresPermission(Manifest.permission.VIBRATE)
+    private fun vibrate() {
+        try {
+            val v = getSystemService(Vibrator::class.java) ?: return
+            v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500), -1))
+        } catch (e: Exception) {
+            Log.e(TAG, "Vibration failed", e)
         }
     }
 
     private fun saveState() {
         serviceScope.launch {
             dataStore.saveTimerState(
-                isRunning = _isRunning.value,
+                isRunning     = _isRunning.value,
                 targetEndTime = targetEndTime,
-                timeLeft = _timeLeft.value,
-                session = _currentSession.value.name,
-                cycle = _cycleCount.value
+                timeLeft      = _timeLeft.value,
+                session       = _currentSession.value.name,
+                cycle         = _cycleCount.value
             )
         }
     }
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Timer Updates",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 500, 200, 500)
-        }
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
-    }
-
-    private fun createNotification(title: String = "Pomodoro Timer", content: String? = null): Notification {
-        val pendingIntent = Intent(this, MainActivity::class.java).let {
-            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
-        }
-
-        val text = content ?: "${_currentSession.value.name}: ${formatTime(_timeLeft.value)}"
-
-        val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setSmallIcon(R.drawable.ic_ongoing_activity)
-            .setContentIntent(pendingIntent)
-            .setOngoing(_isRunning.value)
-            .setOnlyAlertOnce(false)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setVibrate(longArrayOf(0, 500, 200, 500))
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-
-        // Add Ongoing Activity
-        if (_isRunning.value) {
-            val ongoingActivityStatus = Status.Builder()
-                .addTemplate("${_currentSession.value.name}: #time#")
-                .addPart("time", Status.TimerPart(targetEndTime))
-                .build()
-
-            val ongoingActivity = OngoingActivity.Builder(
-                applicationContext, NOTIFICATION_ID, notificationBuilder
-            )
-                .setAnimatedIcon(R.drawable.ic_ongoing_activity)
-                .setStaticIcon(R.drawable.ic_ongoing_activity)
-                .setTouchIntent(pendingIntent)
-                .setStatus(ongoingActivityStatus)
-                .build()
-
-            ongoingActivity.apply(applicationContext)
-        }
-
-        return notificationBuilder.build()
-    }
-
-    private fun updateNotification(title: String = "Pomodoro Timer", content: String? = null) {
-        val notification = createNotification(title, content)
-        if (_isRunning.value) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        } else {
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.notify(NOTIFICATION_ID, notification)
-        }
-    }
-
-    private fun formatTime(seconds: Long): String {
-        val mins = seconds / 60
-        val secs = seconds % 60
-        return "%02d:%02d".format(mins, secs)
-    }
+    private fun formatTime(s: Long) = "%02d:%02d".format(s / 60, s % 60)
 
     companion object {
-        const val CHANNEL_ID = "timer_channel_v2"
-        const val NOTIFICATION_ID = 1
-        const val ALERT_NOTIFICATION_ID = 2
+        private const val TAG           = "TimerService"
+        const val TIMER_CHANNEL         = "timer_channel_v3"
+        const val ALERT_CHANNEL         = "pomodoro_alerts_v2"
+        const val NOTIFICATION_ID       = 1
+        const val ALERT_ID              = 2
     }
 }

@@ -20,89 +20,105 @@ import kotlinx.coroutines.launch
 enum class SessionType { WORK, SHORT_REST, LONG_REST }
 
 class PomodoroViewModel(application: Application) : AndroidViewModel(application) {
+
     private val dataStore = TimerDataStore(application)
-    private var timerService: TimerService? = null
-    private var isBound by mutableStateOf(false)
+    private var service: TimerService? = null
 
-    var workLengthMinutes by mutableIntStateOf(25)
-        private set
-    var shortRestLengthMinutes by mutableIntStateOf(5)
-        private set
-    var longRestLengthMinutes by mutableIntStateOf(15)
-        private set
+    // ── UI state ──────────────────────────────────────────────────────────────
 
-    var autoStartNextSession by mutableStateOf(false)
-        private set
-
-    var timeLeft by mutableLongStateOf(workLengthMinutes * 60L)
-    var isRunning by mutableStateOf(false)
+    var isBound        by mutableStateOf(false)         ; private set
+    var timeLeft       by mutableLongStateOf(0L)
+    var isRunning      by mutableStateOf(false)
     var currentSession by mutableStateOf(SessionType.WORK)
-    var cycleCount by mutableIntStateOf(1)
+    var cycleCount     by mutableIntStateOf(1)
+
+    var workLengthMinutes      by mutableIntStateOf(25) ; private set
+    var shortRestLengthMinutes by mutableIntStateOf(5)  ; private set
+    var longRestLengthMinutes  by mutableIntStateOf(15) ; private set
+    var autoStartNextSession   by mutableStateOf(false) ; private set
+
+    // ── Service connection ────────────────────────────────────────────────────
 
     private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as TimerService.TimerBinder
-            timerService = binder.getService()
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            service = (binder as TimerService.TimerBinder).getService()
             isBound = true
             observeService()
         }
-
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
-            timerService = null
+            service = null
         }
     }
 
     init {
+        // Bind to service. BIND_AUTO_CREATE starts it if not already running.
+        // The service becomes persistent (outlives bindings) once it calls startForeground()
+        // when the timer starts.
         val intent = Intent(application, TimerService::class.java)
         application.bindService(intent, connection, Context.BIND_AUTO_CREATE)
 
+        // Pre-load saved state from DataStore so the UI shows the correct values
+        // immediately — before the async service binding completes (~100-200 ms).
         viewModelScope.launch {
-            dataStore.workLengthMinutes.collect { workLengthMinutes = it }
+            val state = dataStore.timerState.first()
+            if (!isBound) {
+                timeLeft       = state.timeLeft
+                isRunning      = state.isRunning
+                currentSession = try { SessionType.valueOf(state.currentSession) }
+                                 catch (_: Exception) { SessionType.WORK }
+                cycleCount     = state.cycleCount
+            }
+            // Settings: read once for the initial value, then keep a live observer below.
+            workLengthMinutes      = dataStore.workLengthMinutes.first()
+            shortRestLengthMinutes = dataStore.shortRestLengthMinutes.first()
+            longRestLengthMinutes  = dataStore.longRestLengthMinutes.first()
+            autoStartNextSession   = dataStore.autoStartNextSession.first()
         }
-        viewModelScope.launch {
-            dataStore.shortRestLengthMinutes.collect { shortRestLengthMinutes = it }
-        }
-        viewModelScope.launch {
-            dataStore.longRestLengthMinutes.collect { longRestLengthMinutes = it }
-        }
-        viewModelScope.launch {
-            dataStore.autoStartNextSession.collect { autoStartNextSession = it }
-        }
+
+        // Live observers for settings changes (e.g., user changes duration in settings screen).
+        viewModelScope.launch { dataStore.workLengthMinutes.collect      { workLengthMinutes      = it } }
+        viewModelScope.launch { dataStore.shortRestLengthMinutes.collect { shortRestLengthMinutes = it } }
+        viewModelScope.launch { dataStore.longRestLengthMinutes.collect  { longRestLengthMinutes  = it } }
+        viewModelScope.launch { dataStore.autoStartNextSession.collect   { autoStartNextSession   = it } }
     }
 
     private fun observeService() {
-        timerService?.let { service ->
-            viewModelScope.launch {
-                service.timeLeft.collect { timeLeft = it }
-            }
-            viewModelScope.launch {
-                service.isRunning.collect { isRunning = it }
-            }
-            viewModelScope.launch {
-                service.currentSession.collect { currentSession = it }
-            }
-            viewModelScope.launch {
-                service.cycleCount.collect { cycleCount = it }
-            }
-        }
+        val svc = service ?: return
+        // Each collect overwrites the DataStore preload with the live service value.
+        viewModelScope.launch { svc.timeLeft.collect       { timeLeft       = it } }
+        viewModelScope.launch { svc.isRunning.collect      { isRunning      = it } }
+        viewModelScope.launch { svc.currentSession.collect { currentSession = it } }
+        viewModelScope.launch { svc.cycleCount.collect     { cycleCount     = it } }
     }
+
+    // ── Actions ───────────────────────────────────────────────────────────────
 
     fun toggleTimer() {
         if (!isBound) {
+            // Service died unexpectedly (e.g., system killed it while paused).
+            // Re-bind; the user will need to tap again once connected.
             val intent = Intent(getApplication(), TimerService::class.java)
-            getApplication<Application>().startForegroundService(intent)
             getApplication<Application>().bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            return
         }
-        timerService?.toggleTimer()
+        service?.toggleTimer()
     }
 
-    fun resetAll() {
-        timerService?.resetTimer(workLengthMinutes)
-    }
+    fun resetAll() { service?.resetTimer(workLengthMinutes) }
+    fun skipNext() { service?.skipNext() }
 
-    fun skipNext() {
-        timerService?.skipNext()
+    fun updateWorkLength(minutes: Int) {
+        viewModelScope.launch { dataStore.saveWorkLength(maxOf(1, minutes)) }
+    }
+    fun updateShortRestLength(minutes: Int) {
+        viewModelScope.launch { dataStore.saveShortRestLength(maxOf(1, minutes)) }
+    }
+    fun updateLongRestLength(minutes: Int) {
+        viewModelScope.launch { dataStore.saveLongRestLength(maxOf(1, minutes)) }
+    }
+    fun updateAutoStartNextSession(enabled: Boolean) {
+        viewModelScope.launch { dataStore.saveAutoStartNextSession(enabled) }
     }
 
     override fun onCleared() {
@@ -110,33 +126,6 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         if (isBound) {
             getApplication<Application>().unbindService(connection)
             isBound = false
-        }
-    }
-
-    fun updateWorkLength(minutes: Int) {
-        val newMinutes = maxOf(1, minutes)
-        viewModelScope.launch {
-            dataStore.saveWorkLength(newMinutes)
-        }
-    }
-
-    fun updateShortRestLength(minutes: Int) {
-        val newMinutes = maxOf(1, minutes)
-        viewModelScope.launch {
-            dataStore.saveShortRestLength(newMinutes)
-        }
-    }
-
-    fun updateLongRestLength(minutes: Int) {
-        val newMinutes = maxOf(1, minutes)
-        viewModelScope.launch {
-            dataStore.saveLongRestLength(newMinutes)
-        }
-    }
-
-    fun updateAutoStartNextSession(enabled: Boolean) {
-        viewModelScope.launch {
-            dataStore.saveAutoStartNextSession(enabled)
         }
     }
 }

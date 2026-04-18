@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_settings")
@@ -35,19 +36,19 @@ class TimerDataStore(private val context: Context) {
 
     val workLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[WORK_LENGTH_KEY] ?: 25
-    }
+    }.distinctUntilChanged()
 
     val shortRestLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[SHORT_REST_LENGTH_KEY] ?: 5
-    }
+    }.distinctUntilChanged()
 
     val longRestLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[LONG_REST_LENGTH_KEY] ?: 15
-    }
+    }.distinctUntilChanged()
 
     val autoStartNextSession: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[AUTO_START_NEXT_SESSION_KEY] ?: false
-    }
+    }.distinctUntilChanged()
 
     val timerState: Flow<TimerState> = context.dataStore.data.map { preferences ->
         TimerState(

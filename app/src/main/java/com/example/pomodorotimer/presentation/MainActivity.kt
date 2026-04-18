@@ -1,17 +1,12 @@
 package com.example.pomodorotimer.presentation
 
 import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,16 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.CurvedDirection
 import androidx.wear.compose.foundation.CurvedLayout
@@ -52,21 +44,9 @@ class MainActivity : ComponentActivity() {
                 val viewModel: PomodoroViewModel = viewModel()
                 val pagerState = rememberPagerState(pageCount = { 2 })
 
-                val context = LocalContext.current
-                var hasNotificationPermission by remember {
-                    mutableStateOf(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                        } else true
-                    )
-                }
-
-                val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasNotificationPermission = it }
-
+                val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
                 LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
                 AppScaffold(timeText = {}) {
@@ -91,10 +71,12 @@ fun PomodoroScreen(viewModel: PomodoroViewModel) {
     val isRunning = viewModel.isRunning
     val session = viewModel.currentSession
     val cycle = viewModel.cycleCount
-    
+    val isBound = viewModel.isBound
+
     PomodoroContent(
         timeLeftProvider = { viewModel.timeLeft },
         isRunning = isRunning,
+        isBound = isBound,
         session = session,
         cycle = cycle,
         onReset = viewModel::resetAll,
@@ -107,6 +89,7 @@ fun PomodoroScreen(viewModel: PomodoroViewModel) {
 fun PomodoroContent(
     timeLeftProvider: () -> Long,
     isRunning: Boolean,
+    isBound: Boolean,
     session: SessionType,
     cycle: Int,
     onReset: () -> Unit,
@@ -149,7 +132,7 @@ fun PomodoroContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            TimerText(timeLeftProvider)
+            TimerText(timeLeftProvider, isBound)
 
             PomodoroButtonGroup(
                 isRunning = isRunning,
@@ -162,9 +145,12 @@ fun PomodoroContent(
 }
 
 @Composable
-fun TimerText(timeLeftProvider: () -> Long) {
+fun TimerText(timeLeftProvider: () -> Long, isBound: Boolean) {
+    val timeLeft = timeLeftProvider()
+    // Show "--:--" only when we have no data yet (service not connected, DataStore not loaded)
+    val text = if (isBound || timeLeft > 0L) formatTime(timeLeft) else "--:--"
     Text(
-        text = formatTime(timeLeftProvider()),
+        text = text,
         style = MaterialTheme.typography.displayLarge,
         color = Color.White,
         modifier = Modifier.offset(y = (-8).dp)
@@ -189,13 +175,12 @@ fun PomodoroButtonGroup(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
     ) {
-        // PERFORMANCE FIX: Fixed weights for smooth operation on Pixel Watch 4
         GroupButton(
-            weight = 1f,
+            weight = 1.0f,
             onClick = onReset,
             icon = Icons.Default.Refresh,
             shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         )
 
         GroupButton(
@@ -204,15 +189,15 @@ fun PomodoroButtonGroup(
             icon = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
-            isLarge = true
+            isLarge = true,
         )
 
         GroupButton(
-            weight = 1f,
+            weight = 1.0f,
             onClick = onSkip,
             icon = PomodoroIcons.SkipNext,
             shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         )
     }
 }
@@ -224,27 +209,13 @@ fun RowScope.GroupButton(
     icon: ImageVector,
     shape: Shape,
     containerColor: Color,
-    isLarge: Boolean = false
+    isLarge: Boolean = false,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    
-    // Scale on press: GPU accelerated, zero layout impact
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.9f else 1.0f,
-        animationSpec = spring(stiffness = Spring.StiffnessLow), label = ""
-    )
-
     Button(
         onClick = onClick,
-        interactionSource = interactionSource,
         modifier = Modifier
             .weight(weight)
-            .fillMaxHeight()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
+            .fillMaxHeight(),
         shape = shape,
         colors = ButtonDefaults.buttonColors(containerColor = containerColor),
         contentPadding = PaddingValues(0.dp)
@@ -280,6 +251,7 @@ fun PomodoroScreenPreview() {
         PomodoroContent(
             timeLeftProvider = { 1500L },
             isRunning = false,
+            isBound = true,
             session = SessionType.WORK,
             cycle = 1,
             onReset = {},

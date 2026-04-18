@@ -22,6 +22,8 @@ jobs:
       github.event_name == 'push' || 
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
 
@@ -72,13 +74,33 @@ jobs:
     - name: Build Release APK
       run: ./gradlew :app:assembleRelease
 
+    - name: Sign Artifacts
+      uses: r0adkll/sign-android-release@v1
+      id: sign_app
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Sign AAB
+      uses: r0adkll/sign-android-release@v1
+      id: sign_aab
+      with:
+        releaseDirectory: app/build/outputs/bundle/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: release-artifacts
         path: |
-          app/build/outputs/bundle/release/*.aab
-          app/build/outputs/apk/release/*.apk
+          ${{ steps.sign_aab.outputs.signedReleaseFile }}
+          ${{ steps.sign_app.outputs.signedReleaseFile }}
 
     - name: Set Release Tag
       id: tag
@@ -94,8 +116,8 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.tag_name }}
         files: |
-          app/build/outputs/bundle/release/*.aab
-          app/build/outputs/apk/release/*.apk
+          ${{ steps.sign_aab.outputs.signedReleaseFile }}
+          ${{ steps.sign_app.outputs.signedReleaseFile }}
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

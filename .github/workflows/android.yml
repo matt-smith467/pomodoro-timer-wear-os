@@ -30,13 +30,13 @@ jobs:
       run: chmod +x gradlew
 
     - name: Run Format Check
-      run: ./gradlew spotlessCheck
+      run: ./gradlew spotlessCheck --configuration-cache
 
     - name: Run Full Lint Check
-      run: ./gradlew lint
+      run: ./gradlew lint --configuration-cache
 
     - name: Run Unit Tests
-      run: ./gradlew testDebugUnitTest
+      run: ./gradlew testDebugUnitTest --configuration-cache
 
-    - name: Build with Gradle
-      run: ./gradlew build
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --configuration-cache --scan

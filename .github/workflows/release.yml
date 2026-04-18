@@ -69,10 +69,10 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build Release Bundle (AAB)
-      run: ./gradlew :app:bundleRelease
+      run: ./gradlew :app:bundleRelease --configuration-cache
 
     - name: Build Release APK
-      run: ./gradlew :app:assembleRelease
+      run: ./gradlew :app:assembleRelease --configuration-cache
 
     - name: Sign Artifacts
       uses: r0adkll/sign-android-release@v1

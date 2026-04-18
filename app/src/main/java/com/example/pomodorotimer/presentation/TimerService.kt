@@ -173,6 +173,10 @@ class TimerService : Service() {
         saveState()
     }
 
+    fun skipNext() {
+        onTimerFinished()
+    }
+
     private fun onTimerFinished() {
         _isRunning.value = false
         timerJob?.cancel()

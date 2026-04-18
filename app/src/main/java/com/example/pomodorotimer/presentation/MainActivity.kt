@@ -8,10 +8,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -79,40 +85,111 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PomodoroScreen(viewModel: PomodoroViewModel) {
-    // State is now directly observed from ViewModel which observes TimerService
     val timeLeft = viewModel.timeLeft
     val isRunning = viewModel.isRunning
     val session = viewModel.currentSession
     val cycle = viewModel.cycleCount
 
-    // 3. UI: How it looks (Material 3)
+    // Use standard Material Icons from the core library
+    val playIcon = Icons.Default.PlayArrow
+    val pauseIcon = PomodoroIcons.Pause
+    val skipNextIcon = PomodoroIcons.SkipNext
+    val refreshIcon = Icons.Default.Refresh
+
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Timer Display (Very Large)
             Text(
                 text = formatTime(timeLeft),
-                style = MaterialTheme.typography.displayLarge
+                style = MaterialTheme.typography.displayLarge,
+                color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row {
-                Button(
+            
+            Text(
+                text = "${formatSessionName(session)} • Cycle $cycle/4",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // Expressive Action Row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth().height(IconButtonDefaults.LargeButtonSize + 12.dp)
+            ) {
+                // Reset Button - Slides in/out
+                AnimatedVisibility(
+                    visible = !isRunning,
+                    enter = slideInHorizontally { -it } + fadeIn(),
+                    exit = slideOutHorizontally { -it } + fadeOut()
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { viewModel.resetAll() },
+                        modifier = Modifier.size(IconButtonDefaults.ExtraSmallButtonSize)
+                    ) {
+                        Icon(
+                            imageVector = refreshIcon,
+                            contentDescription = "Reset",
+                            modifier = Modifier.size(IconButtonDefaults.iconSizeFor(IconButtonDefaults.ExtraSmallButtonSize))
+                        )
+                    }
+                }
+
+                if (!isRunning) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                // Play/Pause Button - Central Focus
+                IconButton(
                     onClick = { viewModel.toggleTimer() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRunning) MaterialTheme.colorScheme.errorContainer
-                        else MaterialTheme.colorScheme.primaryContainer
+                    modifier = Modifier.size(IconButtonDefaults.LargeButtonSize),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer 
+                                        else MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
-                    Text(if (isRunning) "Pause" else "Start")
+                    Icon(
+                        imageVector = if (isRunning) pauseIcon else playIcon,
+                        contentDescription = if (isRunning) "Pause" else "Start",
+                        modifier = Modifier.size(IconButtonDefaults.iconSizeFor(IconButtonDefaults.LargeButtonSize))
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    viewModel.resetAll()
-                }) {
-                    Text("Reset")
+
+                if (!isRunning) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                // Skip Button - Slides in/out
+                AnimatedVisibility(
+                    visible = !isRunning,
+                    enter = slideInHorizontally { it } + fadeIn(),
+                    exit = slideOutHorizontally { it } + fadeOut()
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { viewModel.skipNext() },
+                        modifier = Modifier.size(IconButtonDefaults.ExtraSmallButtonSize)
+                    ) {
+                        Icon(
+                            imageVector = skipNextIcon,
+                            contentDescription = "Skip",
+                            modifier = Modifier.size(IconButtonDefaults.iconSizeFor(IconButtonDefaults.ExtraSmallButtonSize))
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Cycle $cycle/4 - ${session.name}")
         }
+    }
+}
+
+private fun formatSessionName(session: SessionType): String {
+    return when(session) {
+        SessionType.WORK -> "Work"
+        SessionType.SHORT_REST -> "Short Break"
+        SessionType.LONG_REST -> "Long Break"
     }
 }
 

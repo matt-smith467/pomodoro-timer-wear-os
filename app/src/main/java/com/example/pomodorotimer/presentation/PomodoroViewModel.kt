@@ -95,6 +95,10 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         timerService?.resetTimer(workLengthMinutes)
     }
 
+    fun skipNext() {
+        timerService?.skipNext()
+    }
+
     override fun onCleared() {
         super.onCleared()
         if (isBound) {

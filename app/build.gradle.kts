@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.tiles.tooling.preview)
     implementation(libs.watchface.complications.data.source.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.compose.material.icons.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.ui.tooling)

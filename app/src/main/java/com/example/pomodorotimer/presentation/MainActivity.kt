@@ -181,6 +181,7 @@ fun PomodoroButtonGroup(
             icon = Icons.Default.Refresh,
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentDescription = "Reset"
         )
 
         GroupButton(
@@ -190,6 +191,7 @@ fun PomodoroButtonGroup(
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
             isLarge = true,
+            contentDescription = if (isRunning) "Pause" else "Play"
         )
 
         GroupButton(
@@ -198,6 +200,7 @@ fun PomodoroButtonGroup(
             icon = PomodoroIcons.SkipNext,
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentDescription = "Skip"
         )
     }
 }
@@ -210,6 +213,7 @@ fun RowScope.GroupButton(
     shape: Shape,
     containerColor: Color,
     isLarge: Boolean = false,
+    contentDescription: String? = null
 ) {
     Button(
         onClick = onClick,
@@ -224,7 +228,7 @@ fun RowScope.GroupButton(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = contentDescription,
                 tint = Color.White,
                 modifier = Modifier.size(if (isLarge) 32.dp else 24.dp)
             )

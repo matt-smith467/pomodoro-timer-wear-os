@@ -187,8 +187,11 @@ class TimerService : Service() {
             val shortLen = dataStore.shortRestLengthMinutes.first()
             val longLen = dataStore.longRestLengthMinutes.first()
 
-            if (_currentSession.value == SessionType.WORK) {
-                if (_cycleCount.value >= 4) {
+            val current = _currentSession.value
+            val cycle = _cycleCount.value
+
+            if (current == SessionType.WORK) {
+                if (cycle >= 4) {
                     _currentSession.value = SessionType.LONG_REST
                     _timeLeft.value = longLen * 60L
                 } else {
@@ -196,13 +199,14 @@ class TimerService : Service() {
                     _timeLeft.value = shortLen * 60L
                 }
             } else {
-                if (_currentSession.value == SessionType.LONG_REST) {
+                // Moving from break to work starts a new cycle or resets after long break
+                if (current == SessionType.LONG_REST) {
                     _currentSession.value = SessionType.WORK
                     _cycleCount.value = 1
                     _timeLeft.value = workLen * 60L
                 } else {
                     _currentSession.value = SessionType.WORK
-                    _cycleCount.value += 1
+                    _cycleCount.value = cycle + 1
                     _timeLeft.value = workLen * 60L
                 }
             }

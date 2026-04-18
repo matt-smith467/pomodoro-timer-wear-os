@@ -36,7 +36,7 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
         // Short Rest Setting
         item {
             InlineSetting(
-                label = "Short Rest",
+                label = "Short Break",
                 value = viewModel.shortRestLengthMinutes,
                 onValueChange = { viewModel.updateShortRestLength(it) }
             )
@@ -45,7 +45,7 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
         // Long Rest Setting
         item {
             InlineSetting(
-                label = "Long Rest",
+                label = "Long Break",
                 value = viewModel.longRestLengthMinutes,
                 onValueChange = { viewModel.updateLongRestLength(it) }
             )

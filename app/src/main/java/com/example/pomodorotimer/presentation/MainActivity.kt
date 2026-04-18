@@ -13,6 +13,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -28,6 +29,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Devices
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -96,11 +99,27 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PomodoroScreen(viewModel: PomodoroViewModel) {
-    val timeLeft = viewModel.timeLeft
-    val isRunning = viewModel.isRunning
-    val session = viewModel.currentSession
-    val cycle = viewModel.cycleCount
+    PomodoroContent(
+        timeLeft = viewModel.timeLeft,
+        isRunning = viewModel.isRunning,
+        session = viewModel.currentSession,
+        cycle = viewModel.cycleCount,
+        onReset = { viewModel.resetAll() },
+        onToggle = { viewModel.toggleTimer() },
+        onSkip = { viewModel.skipNext() }
+    )
+}
 
+@Composable
+fun PomodoroContent(
+    timeLeft: Long,
+    isRunning: Boolean,
+    session: SessionType,
+    cycle: Int,
+    onReset: () -> Unit,
+    onToggle: () -> Unit,
+    onSkip: () -> Unit
+) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val onBackgroundColor = MaterialTheme.colorScheme.onBackground
 
@@ -110,33 +129,40 @@ fun PomodoroScreen(viewModel: PomodoroViewModel) {
             anchor = 270f,
             modifier = Modifier.padding(10.dp) 
         ) {
-            curvedRow {
-                curvedText(
-                    text = "${formatSessionName(session).uppercase()} • $cycle/4",
-                    style = CurvedTextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = primaryColor
-                    )
-                )
+            val sessionText = when(session) {
+                SessionType.WORK -> "WORK • $cycle/4"
+                SessionType.SHORT_REST -> "BREAK"
+                SessionType.LONG_REST -> "LONG BREAK"
             }
+            curvedText(
+                text = sessionText,
+                style = CurvedTextStyle(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            )
         }
 
         // Bottom Curved Text (Up Next)
         CurvedLayout(
             anchor = 90f,
             angularDirection = CurvedDirection.Angular.CounterClockwise,
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(8.dp) // Less padding = larger radius = more space
         ) {
-            curvedRow {
-                curvedText(
-                    text = "UP NEXT: ${formatSessionName(getUpNextSession(session, cycle))}",
-                    style = CurvedTextStyle(
-                        fontSize = 12.sp,
-                        color = onBackgroundColor.copy(alpha = 0.7f)
-                    )
-                )
+            val nextSession = getUpNextSession(session, cycle)
+            val nextText = when(nextSession) {
+                SessionType.WORK -> "NEXT: WORK"
+                SessionType.SHORT_REST -> "NEXT: SHORT BREAK"
+                SessionType.LONG_REST -> "NEXT: LONG BREAK"
             }
+            curvedText(
+                text = nextText,
+                style = CurvedTextStyle(
+                    fontSize = 11.sp, // Slightly smaller to fit
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            )
         }
 
         // Central Content
@@ -148,17 +174,16 @@ fun PomodoroScreen(viewModel: PomodoroViewModel) {
             Text(
                 text = formatTime(timeLeft),
                 style = MaterialTheme.typography.displayLarge,
-                color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                color = Color.White,
+                modifier = Modifier.offset(y = (-8).dp) // Move only clock up
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // M3 Expressive Button Group
+            // M3 Expressive Button Group (Centered)
             PomodoroButtonGroup(
                 isRunning = isRunning,
-                onReset = { viewModel.resetAll() },
-                onToggle = { viewModel.toggleTimer() },
-                onSkip = { viewModel.skipNext() }
+                onReset = onReset,
+                onToggle = onToggle,
+                onSkip = onSkip
             )
         }
     }
@@ -182,8 +207,8 @@ fun PomodoroButtonGroup(
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
     
-    // Scale group height based on screen width (roughly 30% of width)
-    val groupHeight = screenWidth * 0.3f
+    // Scale sizes
+    val groupHeight = screenWidth * 0.28f
     val largeIconSize = groupHeight * 0.45f
     val smallIconSize = groupHeight * 0.35f
 
@@ -199,25 +224,25 @@ fun PomodoroButtonGroup(
     
     val resetWeight by animateFloatAsState(
         targetValue = when {
-            isResetPressed -> 1.8f
-            isTogglePressed || isSkipPressed -> 0.6f
-            else -> 1.0f
+            isResetPressed -> 1.5f
+            isTogglePressed || isSkipPressed -> 0.7f
+            else -> 0.8f
         },
         animationSpec = tween(400, easing = emphasizedEasing), label = ""
     )
     val toggleWeight by animateFloatAsState(
         targetValue = when {
-            isTogglePressed -> 1.8f
-            isResetPressed || isSkipPressed -> 0.6f
-            else -> 1.0f
+            isTogglePressed -> 1.6f
+            isResetPressed || isSkipPressed -> 0.8f
+            else -> 1.2f
         },
         animationSpec = tween(400, easing = emphasizedEasing), label = ""
     )
     val skipWeight by animateFloatAsState(
         targetValue = when {
-            isSkipPressed -> 1.8f
-            isResetPressed || isTogglePressed -> 0.6f
-            else -> 1.0f
+            isSkipPressed -> 1.5f
+            isResetPressed || isTogglePressed -> 0.7f
+            else -> 0.8f
         },
         animationSpec = tween(400, easing = emphasizedEasing), label = ""
     )
@@ -233,59 +258,45 @@ fun PomodoroButtonGroup(
 
     Row(
         modifier = Modifier
-            .fillMaxWidth(0.94f)
+            .fillMaxWidth(0.85f) // Narrower row to be closer together
             .height(groupHeight),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
-        // Reset Button
+        // Reset Button (Pill)
         GroupButton(
             weight = resetWeight,
             onClick = onReset,
             interactionSource = resetInteraction,
             icon = Icons.Default.Refresh,
             iconSize = smallIconSize,
-            shape = RoundedCornerShape(
-                topStart = outerCorner, 
-                bottomStart = outerCorner, 
-                topEnd = resetInnerCorner, 
-                bottomEnd = resetInnerCorner
-            ),
+            shape = CircleShape, // Pill/Circle shape
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
 
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
-        // Play/Pause Button
+        // Play/Pause Button (Dynamic Shape)
         GroupButton(
             weight = toggleWeight,
             onClick = onToggle,
             interactionSource = toggleInteraction,
             icon = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
             iconSize = largeIconSize,
-            shape = RoundedCornerShape(
-                topStart = toggleStartCorner, 
-                bottomStart = toggleStartCorner, 
-                topEnd = toggleEndCorner, 
-                bottomEnd = toggleEndCorner
-            ),
+            shape = RoundedCornerShape(24.dp), // More expressive rounded rect
             containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer
         )
 
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
-        // Skip Button
+        // Skip Button (Pill)
         GroupButton(
             weight = skipWeight,
             onClick = onSkip,
             interactionSource = skipInteraction,
             icon = PomodoroIcons.SkipNext,
             iconSize = smallIconSize,
-            shape = RoundedCornerShape(
-                topStart = skipInnerCorner, 
-                bottomStart = skipInnerCorner, 
-                topEnd = outerCorner, 
-                bottomEnd = outerCorner
-            ),
+            shape = CircleShape, // Pill/Circle shape
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     }
@@ -318,6 +329,7 @@ fun RowScope.GroupButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
+                tint = Color.White,
                 modifier = Modifier
                     .size(iconSize)
                     .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
@@ -338,4 +350,36 @@ private fun formatTime(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return "%02d:%02d".format(mins, secs)
+}
+
+@Preview(device = Devices.WEAR_OS_SMALL_ROUND, showSystemUi = true)
+@Composable
+fun PomodoroScreenPreview() {
+    PomodoroTimerTheme {
+        PomodoroContent(
+            timeLeft = 1500L,
+            isRunning = false,
+            session = SessionType.WORK,
+            cycle = 1,
+            onReset = {},
+            onToggle = {},
+            onSkip = {}
+        )
+    }
+}
+
+@Preview(device = Devices.WEAR_OS_LARGE_ROUND, showSystemUi = true)
+@Composable
+fun PomodoroScreenRunningPreview() {
+    PomodoroTimerTheme {
+        PomodoroContent(
+            timeLeft = 450L,
+            isRunning = true,
+            session = SessionType.SHORT_REST,
+            cycle = 2,
+            onReset = {},
+            onToggle = {},
+            onSkip = {}
+        )
+    }
 }

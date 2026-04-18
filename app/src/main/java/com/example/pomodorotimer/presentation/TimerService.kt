@@ -248,7 +248,7 @@ class TimerService : Service() {
         val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_ongoing_activity)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -265,8 +265,8 @@ class TimerService : Service() {
             val ongoingActivity = OngoingActivity.Builder(
                 applicationContext, NOTIFICATION_ID, notificationBuilder
             )
-                .setAnimatedIcon(R.drawable.ic_launcher_foreground)
-                .setStaticIcon(R.drawable.ic_launcher_foreground)
+                .setAnimatedIcon(R.drawable.ic_ongoing_activity)
+                .setStaticIcon(R.drawable.ic_ongoing_activity)
                 .setTouchIntent(pendingIntent)
                 .setStatus(ongoingActivityStatus)
                 .build()

@@ -1,28 +1,58 @@
 package com.example.pomodorotimer.presentation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.*
 import com.example.pomodorotimer.presentation.theme.PomodoroTimerTheme
-import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-// Inside MainActivity's setContent { ... }
             PomodoroTimerTheme {
                 val viewModel: PomodoroViewModel = viewModel()
                 val pagerState = rememberPagerState(pageCount = { 2 })
+
+                // Request Notification Permission for Android 13+
+                val context = LocalContext.current
+                var hasNotificationPermission by remember {
+                    mutableStateOf(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == PackageManager.PERMISSION_GRANTED
+                        } else true
+                    )
+                }
+
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    hasNotificationPermission = isGranted
+                }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
 
                 AppScaffold {
                     HorizontalPagerScaffold(
@@ -49,21 +79,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PomodoroScreen(viewModel: PomodoroViewModel) {
-    // 1. State: What changes in our app?
+    // State is now directly observed from ViewModel which observes TimerService
     val timeLeft = viewModel.timeLeft
+    val isRunning = viewModel.isRunning
     val session = viewModel.currentSession
     val cycle = viewModel.cycleCount
-
-
-    LaunchedEffect(viewModel.isRunning) {
-        if (viewModel.isRunning) {
-            while (viewModel.timeLeft > 0) {
-                delay(1000L)
-                viewModel.timeLeft--
-            }
-            viewModel.onTimerFinished()
-        }
-    }
 
     // 3. UI: How it looks (Material 3)
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -75,13 +95,13 @@ fun PomodoroScreen(viewModel: PomodoroViewModel) {
             Spacer(modifier = Modifier.height(8.dp))
             Row {
                 Button(
-                    onClick = { viewModel.isRunning = !viewModel.isRunning },
+                    onClick = { viewModel.toggleTimer() },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (viewModel.isRunning) MaterialTheme.colorScheme.errorContainer
+                        containerColor = if (isRunning) MaterialTheme.colorScheme.errorContainer
                         else MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
-                    Text(if (viewModel.isRunning) "Pause" else "Start")
+                    Text(if (isRunning) "Pause" else "Start")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {

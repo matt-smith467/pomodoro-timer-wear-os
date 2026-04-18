@@ -6,9 +6,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.wear.ongoing.OngoingActivity
+import androidx.wear.ongoing.Status
 import com.example.pomodorotimer.R
 import com.example.pomodorotimer.data.TimerDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -109,7 +113,12 @@ class TimerService : Service() {
             targetEndTime = System.currentTimeMillis() + (_timeLeft.value * 1000)
         }
         
-        startForeground(NOTIFICATION_ID, createNotification())
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         saveState()
 
         timerJob = serviceScope.launch {
@@ -124,7 +133,7 @@ class TimerService : Service() {
                     onTimerFinished()
                     break
                 }
-                delay(500L) // Check more frequently for smoothness, but only update on change
+                delay(500L)
             }
         }
     }
@@ -215,7 +224,7 @@ class TimerService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Timer Updates",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
@@ -228,19 +237,50 @@ class TimerService : Service() {
 
         val text = content ?: "${_currentSession.value.name}: ${formatTime(_timeLeft.value)}"
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        // Add Ongoing Activity
+        if (_isRunning.value) {
+            val ongoingActivityStatus = Status.Builder()
+                .addTemplate("${_currentSession.value.name}: #time#")
+                .addPart("time", Status.TimerPart(targetEndTime))
+                .build()
+
+            val ongoingActivity = OngoingActivity.Builder(
+                applicationContext, NOTIFICATION_ID, notificationBuilder
+            )
+                .setAnimatedIcon(R.drawable.ic_launcher_foreground)
+                .setStaticIcon(R.drawable.ic_launcher_foreground)
+                .setTouchIntent(pendingIntent)
+                .setStatus(ongoingActivityStatus)
+                .build()
+
+            ongoingActivity.apply(applicationContext)
+        }
+
+        return notificationBuilder.build()
     }
 
     private fun updateNotification(title: String = "Pomodoro Timer", content: String? = null) {
         val notification = createNotification(title, content)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+        if (_isRunning.value) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } else {
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun formatTime(seconds: Long): String {
@@ -250,7 +290,7 @@ class TimerService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "timer_channel"
+        const val CHANNEL_ID = "timer_channel_v2"
         const val NOTIFICATION_ID = 1
     }
 }

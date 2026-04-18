@@ -61,6 +61,7 @@ class TimerService : Service() {
     private var timerJob: Job? = null
     private lateinit var dataStore: TimerDataStore
     private lateinit var nm: NotificationManager
+    private val sessionManager = SessionManager()
 
     // Tracks how many clients are bound. When 0, app is not visible → post alert notification.
     // When > 0, app is visible → just vibrate, UI will update itself.
@@ -103,6 +104,7 @@ class TimerService : Service() {
                 dataStore.workLengthMinutes.collect { 
                     if (it != workLen) {
                         workLen = it
+                        sessionManager.workLenMin = it
                         refreshIdleTime()
                     }
                 } 
@@ -111,6 +113,7 @@ class TimerService : Service() {
                 dataStore.shortRestLengthMinutes.collect { 
                     if (it != shortLen) {
                         shortLen = it
+                        sessionManager.shortRestLenMin = it
                         refreshIdleTime()
                     }
                 } 
@@ -119,6 +122,7 @@ class TimerService : Service() {
                 dataStore.longRestLengthMinutes.collect { 
                     if (it != longLen) {
                         longLen = it
+                        sessionManager.longRestLenMin = it
                         refreshIdleTime()
                     }
                 } 
@@ -220,36 +224,19 @@ class TimerService : Service() {
 
         vibrate()
 
-        val finished = _currentSession.value
-        val cycle    = _cycleCount.value
-
-        val finishedName = when (finished) {
+        val finishedName = when (_currentSession.value) {
             SessionType.WORK       -> "Work session"
             SessionType.SHORT_REST -> "Short break"
             SessionType.LONG_REST  -> "Long break"
         }
 
-        // Advance session state using cached settings — zero async operations.
-        when {
-            finished == SessionType.WORK && cycle >= 4 -> {
-                _currentSession.value = SessionType.LONG_REST
-                _timeLeft.value       = longLen * 60L
-            }
-            finished == SessionType.WORK -> {
-                _currentSession.value = SessionType.SHORT_REST
-                _timeLeft.value       = shortLen * 60L
-            }
-            finished == SessionType.LONG_REST -> {
-                _currentSession.value = SessionType.WORK
-                _cycleCount.value     = 1
-                _timeLeft.value       = workLen * 60L
-            }
-            else -> { // SHORT_REST
-                _currentSession.value = SessionType.WORK
-                _cycleCount.value     = cycle + 1
-                _timeLeft.value       = workLen * 60L
-            }
-        }
+        // Advance session state using SessionManager
+        val nextState = sessionManager.nextSession(
+            SessionState(_currentSession.value, _cycleCount.value, _timeLeft.value)
+        )
+        _currentSession.value = nextState.type
+        _cycleCount.value = nextState.cycle
+        _timeLeft.value = nextState.timeLeftSeconds
 
         saveState()
 

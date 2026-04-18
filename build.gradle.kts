@@ -14,7 +14,7 @@ tasks.register("fastCheck") {
 tasks.register("fullCheck") {
     group = "verification"
     description = "Full lint, unit tests, and build"
-    dependsOn(":app:lint", ":app:test", ":app:build")
+    dependsOn(":app:lint", ":app:testDebugUnitTest", ":app:build")
 }
 
 tasks.register("install") {

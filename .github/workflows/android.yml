@@ -30,4 +30,4 @@ jobs:
 
     - name: Run Verification Suite
       run: |
-        gradle spotlessCheck lint testDebugUnitTest assembleDebug --configuration-cache --scan
+        gradle spotlessCheck lintDebug testDebugUnitTest assembleDebug --configuration-cache --scan

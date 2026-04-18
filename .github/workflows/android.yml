@@ -28,17 +28,14 @@ jobs:
       with:
         gradle-version: wrapper
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
     - name: Run Format Check
-      run: ./gradlew spotlessCheck --configuration-cache
+      run: gradle spotlessCheck --configuration-cache
 
     - name: Run Full Lint Check
-      run: ./gradlew lint --configuration-cache
+      run: gradle lint --configuration-cache
 
     - name: Run Unit Tests
-      run: ./gradlew testDebugUnitTest --configuration-cache
+      run: gradle testDebugUnitTest --configuration-cache
 
     - name: Build Debug APK
-      run: ./gradlew assembleDebug --configuration-cache --scan
+      run: gradle assembleDebug --configuration-cache --scan

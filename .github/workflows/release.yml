@@ -67,14 +67,11 @@ jobs:
       run: |
         sed -i "s/versionName = .*/versionName = \"${{ github.event.inputs.versionName }}\"/" app/build.gradle.kts
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
     - name: Build Release Bundle (AAB)
-      run: ./gradlew :app:bundleRelease --configuration-cache
+      run: gradle :app:bundleRelease --configuration-cache
 
     - name: Build Release APK
-      run: ./gradlew :app:assembleRelease --configuration-cache
+      run: gradle :app:assembleRelease --configuration-cache
 
     - name: Sign Artifacts
       uses: r0adkll/sign-android-release@v1

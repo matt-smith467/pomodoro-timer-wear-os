@@ -50,6 +50,15 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
                 onValueChange = { viewModel.updateLongRestLength(it) }
             )
         }
+
+        item {
+            CheckboxButton(
+                checked = viewModel.autoStartNextSession,
+                onCheckedChange = { viewModel.updateAutoStartNextSession(it) },
+                label = { Text("Auto-start Next") },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+        }
     }
 }
 

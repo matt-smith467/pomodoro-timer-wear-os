@@ -31,6 +31,9 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
     var longRestLengthMinutes by mutableIntStateOf(15)
         private set
 
+    var autoStartNextSession by mutableStateOf(false)
+        private set
+
     var timeLeft by mutableLongStateOf(workLengthMinutes * 60L)
     var isRunning by mutableStateOf(false)
     var currentSession by mutableStateOf(SessionType.WORK)
@@ -62,6 +65,9 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         }
         viewModelScope.launch {
             dataStore.longRestLengthMinutes.collect { longRestLengthMinutes = it }
+        }
+        viewModelScope.launch {
+            dataStore.autoStartNextSession.collect { autoStartNextSession = it }
         }
     }
 
@@ -125,6 +131,12 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         val newMinutes = maxOf(1, minutes)
         viewModelScope.launch {
             dataStore.saveLongRestLength(newMinutes)
+        }
+    }
+
+    fun updateAutoStartNextSession(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.saveAutoStartNextSession(enabled)
         }
     }
 }

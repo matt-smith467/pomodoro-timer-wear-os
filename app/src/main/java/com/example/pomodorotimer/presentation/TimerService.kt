@@ -10,6 +10,8 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.Vibrator
+import android.os.VibrationEffect
 import androidx.core.app.NotificationCompat
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
@@ -44,11 +46,27 @@ class TimerService : Service() {
     private val _cycleCount = MutableStateFlow(1)
     val cycleCount: StateFlow<Int> = _cycleCount
 
+    private var boundClients = 0
+
+    private fun vibrate() {
+        val vibrator = getSystemService(Vibrator::class.java)
+        val effect = VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500), -1)
+        vibrator.vibrate(effect)
+    }
+
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
     }
 
-    override fun onBind(intent: Intent): IBinder = binder
+    override fun onBind(intent: Intent): IBinder {
+        boundClients++
+        return binder
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        boundClients--
+        return super.onUnbind(intent)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_STICKY
@@ -189,7 +207,14 @@ class TimerService : Service() {
 
             val current = _currentSession.value
             val cycle = _cycleCount.value
+            
+            val finishedSessionName = when(current) {
+                SessionType.WORK -> "Work session"
+                SessionType.SHORT_REST -> "Short break"
+                SessionType.LONG_REST -> "Long break"
+            }
 
+            // Determine next session type
             if (current == SessionType.WORK) {
                 if (cycle >= 4) {
                     _currentSession.value = SessionType.LONG_REST
@@ -199,20 +224,45 @@ class TimerService : Service() {
                     _timeLeft.value = shortLen * 60L
                 }
             } else {
-                // Moving from break to work starts a new cycle or resets after long break
                 if (current == SessionType.LONG_REST) {
                     _currentSession.value = SessionType.WORK
                     _cycleCount.value = 1
-                    _timeLeft.value = workLen * 60L
                 } else {
                     _currentSession.value = SessionType.WORK
                     _cycleCount.value = cycle + 1
-                    _timeLeft.value = workLen * 60L
                 }
+                _timeLeft.value = workLen * 60L
             }
+            
             saveState()
-            updateNotification("Session Finished!", "Tap to start next session.")
-            stopForeground(STOP_FOREGROUND_DETACH)
+            
+            val autoStart = dataStore.autoStartNextSession.first()
+            val nextSessionName = when(_currentSession.value) {
+                SessionType.WORK -> "work"
+                SessionType.SHORT_REST -> "short break"
+                SessionType.LONG_REST -> "long break"
+            }
+
+            // Notify User
+            if (boundClients == 0) {
+                val manager = getSystemService(NotificationManager::class.java)
+                val alertTitle = "$finishedSessionName complete!"
+                val alertText = if (autoStart) {
+                    "Next $nextSessionName started."
+                } else {
+                    "Tap to start $nextSessionName."
+                }
+                manager.notify(ALERT_NOTIFICATION_ID, createNotification(alertTitle, alertText))
+            } else {
+                vibrate()
+            }
+
+            if (autoStart) {
+                delay(500) // Small delay to feel vibration
+                startTimer()
+            } else {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
         }
     }
 
@@ -232,8 +282,11 @@ class TimerService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Timer Updates",
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 500, 200, 500)
+        }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
     }
@@ -250,9 +303,11 @@ class TimerService : Service() {
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_ongoing_activity)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setOngoing(_isRunning.value)
+            .setOnlyAlertOnce(false)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVibrate(longArrayOf(0, 500, 200, 500))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
         // Add Ongoing Activity
@@ -300,5 +355,6 @@ class TimerService : Service() {
     companion object {
         const val CHANNEL_ID = "timer_channel_v2"
         const val NOTIFICATION_ID = 1
+        const val ALERT_NOTIFICATION_ID = 2
     }
 }

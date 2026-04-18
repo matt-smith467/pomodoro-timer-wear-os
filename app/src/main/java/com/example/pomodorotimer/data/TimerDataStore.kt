@@ -26,6 +26,7 @@ class TimerDataStore(private val context: Context) {
     private val WORK_LENGTH_KEY = intPreferencesKey("work_length")
     private val SHORT_REST_LENGTH_KEY = intPreferencesKey("short_rest_length")
     private val LONG_REST_LENGTH_KEY = intPreferencesKey("long_rest_length")
+    private val AUTO_START_NEXT_SESSION_KEY = booleanPreferencesKey("auto_start_next_session")
     private val IS_RUNNING_KEY = booleanPreferencesKey("is_running")
     private val TARGET_END_TIME_KEY = longPreferencesKey("target_end_time")
     private val TIME_LEFT_KEY = longPreferencesKey("time_left")
@@ -42,6 +43,10 @@ class TimerDataStore(private val context: Context) {
 
     val longRestLengthMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[LONG_REST_LENGTH_KEY] ?: 15
+    }
+
+    val autoStartNextSession: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[AUTO_START_NEXT_SESSION_KEY] ?: false
     }
 
     val timerState: Flow<TimerState> = context.dataStore.data.map { preferences ->
@@ -79,6 +84,12 @@ class TimerDataStore(private val context: Context) {
     suspend fun saveLongRestLength(minutes: Int) {
         context.dataStore.edit { preferences ->
             preferences[LONG_REST_LENGTH_KEY] = minutes
+        }
+    }
+
+    suspend fun saveAutoStartNextSession(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[AUTO_START_NEXT_SESSION_KEY] = enabled
         }
     }
 }

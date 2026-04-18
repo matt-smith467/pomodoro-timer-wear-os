@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,7 +37,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.CurvedDirection
 import androidx.wear.compose.foundation.CurvedLayout
 import androidx.wear.compose.foundation.CurvedTextStyle
-import androidx.wear.compose.foundation.curvedRow
 import androidx.wear.compose.foundation.padding
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
@@ -54,24 +52,16 @@ class MainActivity : ComponentActivity() {
                 val viewModel: PomodoroViewModel = viewModel()
                 val pagerState = rememberPagerState(pageCount = { 2 })
 
-                // Request Notification Permission for Android 13+
                 val context = LocalContext.current
                 var hasNotificationPermission by remember {
                     mutableStateOf(
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) == PackageManager.PERMISSION_GRANTED
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                         } else true
                     )
                 }
 
-                val permissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    hasNotificationPermission = isGranted
-                }
+                val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasNotificationPermission = it }
 
                 LaunchedEffect(Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -79,12 +69,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                AppScaffold(
-                    timeText = { /* No clock */ }
-                ) {
+                AppScaffold(timeText = {}) {
                     HorizontalPager(
                         state = pagerState,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1
                     ) { page ->
                         when (page) {
                             0 -> PomodoroScreen(viewModel)
@@ -99,20 +88,24 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PomodoroScreen(viewModel: PomodoroViewModel) {
+    val isRunning = viewModel.isRunning
+    val session = viewModel.currentSession
+    val cycle = viewModel.cycleCount
+    
     PomodoroContent(
-        timeLeft = viewModel.timeLeft,
-        isRunning = viewModel.isRunning,
-        session = viewModel.currentSession,
-        cycle = viewModel.cycleCount,
-        onReset = { viewModel.resetAll() },
-        onToggle = { viewModel.toggleTimer() },
-        onSkip = { viewModel.skipNext() }
+        timeLeftProvider = { viewModel.timeLeft },
+        isRunning = isRunning,
+        session = session,
+        cycle = cycle,
+        onReset = viewModel::resetAll,
+        onToggle = viewModel::toggleTimer,
+        onSkip = viewModel::skipNext
     )
 }
 
 @Composable
 fun PomodoroContent(
-    timeLeft: Long,
+    timeLeftProvider: () -> Long,
     isRunning: Boolean,
     session: SessionType,
     cycle: Int,
@@ -120,65 +113,44 @@ fun PomodoroContent(
     onToggle: () -> Unit,
     onSkip: () -> Unit
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val onBackgroundColor = MaterialTheme.colorScheme.onBackground
+    val sessionText = remember(session, cycle) {
+        when(session) {
+            SessionType.WORK -> "WORK • $cycle/4"
+            SessionType.SHORT_REST -> "BREAK"
+            SessionType.LONG_REST -> "LONG BREAK"
+        }
+    }
+
+    val nextText = remember(session, cycle) {
+        val nextSession = getUpNextSession(session, cycle)
+        when(nextSession) {
+            SessionType.WORK -> "NEXT: WORK"
+            SessionType.SHORT_REST -> "NEXT: SHORT BREAK"
+            SessionType.LONG_REST -> "NEXT: LONG BREAK"
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // Top Curved Text (Current Session)
-        CurvedLayout(
-            anchor = 270f,
-            modifier = Modifier.padding(10.dp) 
-        ) {
-            val sessionText = when(session) {
-                SessionType.WORK -> "WORK • $cycle/4"
-                SessionType.SHORT_REST -> "BREAK"
-                SessionType.LONG_REST -> "LONG BREAK"
-            }
+        CurvedLayout(anchor = 270f, modifier = Modifier.padding(10.dp)) {
             curvedText(
                 text = sessionText,
-                style = CurvedTextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                style = CurvedTextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
             )
         }
 
-        // Bottom Curved Text (Up Next)
-        CurvedLayout(
-            anchor = 90f,
-            angularDirection = CurvedDirection.Angular.CounterClockwise,
-            modifier = Modifier.padding(8.dp) // Less padding = larger radius = more space
-        ) {
-            val nextSession = getUpNextSession(session, cycle)
-            val nextText = when(nextSession) {
-                SessionType.WORK -> "NEXT: WORK"
-                SessionType.SHORT_REST -> "NEXT: SHORT BREAK"
-                SessionType.LONG_REST -> "NEXT: LONG BREAK"
-            }
+        CurvedLayout(anchor = 90f, angularDirection = CurvedDirection.Angular.CounterClockwise, modifier = Modifier.padding(8.dp)) {
             curvedText(
                 text = nextText,
-                style = CurvedTextStyle(
-                    fontSize = 11.sp, // Slightly smaller to fit
-                    color = Color.White.copy(alpha = 0.7f)
-                )
+                style = CurvedTextStyle(fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
             )
         }
 
-        // Central Content
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Timer Display
-            Text(
-                text = formatTime(timeLeft),
-                style = MaterialTheme.typography.displayLarge,
-                color = Color.White,
-                modifier = Modifier.offset(y = (-8).dp) // Move only clock up
-            )
+            TimerText(timeLeftProvider)
 
-            // M3 Expressive Button Group (Centered)
             PomodoroButtonGroup(
                 isRunning = isRunning,
                 onReset = onReset,
@@ -189,12 +161,14 @@ fun PomodoroContent(
     }
 }
 
-private fun getUpNextSession(current: SessionType, cycle: Int): SessionType {
-    return if (current == SessionType.WORK) {
-        if (cycle >= 4) SessionType.LONG_REST else SessionType.SHORT_REST
-    } else {
-        SessionType.WORK
-    }
+@Composable
+fun TimerText(timeLeftProvider: () -> Long) {
+    Text(
+        text = formatTime(timeLeftProvider()),
+        style = MaterialTheme.typography.displayLarge,
+        color = Color.White,
+        modifier = Modifier.offset(y = (-8).dp)
+    )
 }
 
 @Composable
@@ -206,97 +180,38 @@ fun PomodoroButtonGroup(
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
-    
-    // Scale sizes
     val groupHeight = screenWidth * 0.28f
-    val largeIconSize = groupHeight * 0.45f
-    val smallIconSize = groupHeight * 0.35f
-
-    val resetInteraction = remember { MutableInteractionSource() }
-    val toggleInteraction = remember { MutableInteractionSource() }
-    val skipInteraction = remember { MutableInteractionSource() }
-
-    val isResetPressed by resetInteraction.collectIsPressedAsState()
-    val isTogglePressed by toggleInteraction.collectIsPressedAsState()
-    val isSkipPressed by skipInteraction.collectIsPressedAsState()
-
-    val emphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-    
-    val resetWeight by animateFloatAsState(
-        targetValue = when {
-            isResetPressed -> 1.5f
-            isTogglePressed || isSkipPressed -> 0.7f
-            else -> 0.8f
-        },
-        animationSpec = tween(400, easing = emphasizedEasing), label = ""
-    )
-    val toggleWeight by animateFloatAsState(
-        targetValue = when {
-            isTogglePressed -> 1.6f
-            isResetPressed || isSkipPressed -> 0.8f
-            else -> 1.2f
-        },
-        animationSpec = tween(400, easing = emphasizedEasing), label = ""
-    )
-    val skipWeight by animateFloatAsState(
-        targetValue = when {
-            isSkipPressed -> 1.5f
-            isResetPressed || isTogglePressed -> 0.7f
-            else -> 0.8f
-        },
-        animationSpec = tween(400, easing = emphasizedEasing), label = ""
-    )
-
-    val outerCorner = 40.dp
-    val innerCornerPressed = 20.dp
-    val innerCornerDefault = 8.dp
-
-    val resetInnerCorner by animateDpAsState(if (isResetPressed || isTogglePressed) innerCornerPressed else innerCornerDefault, label = "")
-    val toggleStartCorner by animateDpAsState(if (isTogglePressed || isResetPressed) innerCornerPressed else innerCornerDefault, label = "")
-    val toggleEndCorner by animateDpAsState(if (isTogglePressed || isSkipPressed) innerCornerPressed else innerCornerDefault, label = "")
-    val skipInnerCorner by animateDpAsState(if (isSkipPressed || isTogglePressed) innerCornerPressed else innerCornerDefault, label = "")
 
     Row(
         modifier = Modifier
-            .fillMaxWidth(0.85f) // Narrower row to be closer together
+            .fillMaxWidth(0.85f)
             .height(groupHeight),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
     ) {
-        // Reset Button (Pill)
+        // PERFORMANCE FIX: Fixed weights for smooth operation on Pixel Watch 4
         GroupButton(
-            weight = resetWeight,
+            weight = 1f,
             onClick = onReset,
-            interactionSource = resetInteraction,
             icon = Icons.Default.Refresh,
-            iconSize = smallIconSize,
-            shape = CircleShape, // Pill/Circle shape
+            shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
 
-        Spacer(modifier = Modifier.width(6.dp))
-
-        // Play/Pause Button (Dynamic Shape)
         GroupButton(
-            weight = toggleWeight,
+            weight = 1.3f,
             onClick = onToggle,
-            interactionSource = toggleInteraction,
             icon = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
-            iconSize = largeIconSize,
-            shape = RoundedCornerShape(24.dp), // More expressive rounded rect
-            containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer
+            shape = RoundedCornerShape(24.dp),
+            containerColor = if (isRunning) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
+            isLarge = true
         )
 
-        Spacer(modifier = Modifier.width(6.dp))
-
-        // Skip Button (Pill)
         GroupButton(
-            weight = skipWeight,
+            weight = 1f,
             onClick = onSkip,
-            interactionSource = skipInteraction,
             icon = PomodoroIcons.SkipNext,
-            iconSize = smallIconSize,
-            shape = CircleShape, // Pill/Circle shape
+            shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     }
@@ -306,44 +221,50 @@ fun PomodoroButtonGroup(
 fun RowScope.GroupButton(
     weight: Float,
     onClick: () -> Unit,
-    interactionSource: MutableInteractionSource,
     icon: ImageVector,
-    iconSize: androidx.compose.ui.unit.Dp,
     shape: Shape,
-    containerColor: Color
+    containerColor: Color,
+    isLarge: Boolean = false
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val iconScale by animateFloatAsState(if (isPressed) 1.2f else 1.0f, label = "")
+    
+    // Scale on press: GPU accelerated, zero layout impact
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1.0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow), label = ""
+    )
 
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
         modifier = Modifier
             .weight(weight)
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         shape = shape,
         colors = ButtonDefaults.buttonColors(containerColor = containerColor),
         contentPadding = PaddingValues(0.dp)
     ) {
+        // Centering content inside the weighted button
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier
-                    .size(iconSize)
-                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
+                modifier = Modifier.size(if (isLarge) 32.dp else 24.dp)
             )
         }
     }
 }
 
-private fun formatSessionName(session: SessionType): String {
-    return when(session) {
-        SessionType.WORK -> "Work"
-        SessionType.SHORT_REST -> "Short Break"
-        SessionType.LONG_REST -> "Long Break"
-    }
+private fun getUpNextSession(current: SessionType, cycle: Int): SessionType {
+    return if (current == SessionType.WORK) {
+        if (cycle >= 4) SessionType.LONG_REST else SessionType.SHORT_REST
+    } else SessionType.WORK
 }
 
 private fun formatTime(seconds: Long): String {
@@ -357,26 +278,10 @@ private fun formatTime(seconds: Long): String {
 fun PomodoroScreenPreview() {
     PomodoroTimerTheme {
         PomodoroContent(
-            timeLeft = 1500L,
+            timeLeftProvider = { 1500L },
             isRunning = false,
             session = SessionType.WORK,
             cycle = 1,
-            onReset = {},
-            onToggle = {},
-            onSkip = {}
-        )
-    }
-}
-
-@Preview(device = Devices.WEAR_OS_LARGE_ROUND, showSystemUi = true)
-@Composable
-fun PomodoroScreenRunningPreview() {
-    PomodoroTimerTheme {
-        PomodoroContent(
-            timeLeft = 450L,
-            isRunning = true,
-            session = SessionType.SHORT_REST,
-            cycle = 2,
             onReset = {},
             onToggle = {},
             onSkip = {}

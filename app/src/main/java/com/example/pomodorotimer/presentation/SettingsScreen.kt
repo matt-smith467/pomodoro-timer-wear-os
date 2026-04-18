@@ -29,7 +29,7 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
             InlineSetting(
                 label = "Work",
                 value = viewModel.workLengthMinutes,
-                onValueChange = { viewModel.workLengthMinutes = maxOf(1, it) }
+                onValueChange = { viewModel.updateWorkLength(it) }
             )
         }
 
@@ -38,7 +38,7 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
             InlineSetting(
                 label = "Short Rest",
                 value = viewModel.shortRestLengthMinutes,
-                onValueChange = { viewModel.shortRestLengthMinutes = maxOf(1, it) }
+                onValueChange = { viewModel.updateShortRestLength(it) }
             )
         }
 
@@ -47,7 +47,7 @@ fun SettingsScreen(viewModel: PomodoroViewModel) {
             InlineSetting(
                 label = "Long Rest",
                 value = viewModel.longRestLengthMinutes,
-                onValueChange = { viewModel.longRestLengthMinutes = maxOf(1, it) }
+                onValueChange = { viewModel.updateLongRestLength(it) }
             )
         }
     }

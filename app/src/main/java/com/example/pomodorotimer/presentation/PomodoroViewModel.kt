@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import java.lang.ref.WeakReference
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -22,7 +23,7 @@ enum class SessionType { WORK, SHORT_REST, LONG_REST }
 class PomodoroViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dataStore = TimerDataStore(application)
-    private var service: TimerService? = null
+    private var serviceRef = WeakReference<TimerService?>(null)
 
     // ── UI state ──────────────────────────────────────────────────────────────
 
@@ -41,13 +42,14 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            service = (binder as TimerService.TimerBinder).getService()
+            val service = (binder as TimerService.TimerBinder).getService()
+            serviceRef = WeakReference(service)
             isBound = true
-            observeService()
+            observeService(service)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
-            service = null
+            serviceRef.clear()
         }
     }
 
@@ -83,8 +85,7 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { dataStore.autoStartNextSession.collect   { autoStartNextSession   = it } }
     }
 
-    private fun observeService() {
-        val svc = service ?: return
+    private fun observeService(svc: TimerService) {
         // Each collect overwrites the DataStore preload with the live service value.
         viewModelScope.launch { svc.timeLeft.collect       { timeLeft       = it } }
         viewModelScope.launch { svc.isRunning.collect      { isRunning      = it } }
@@ -102,11 +103,11 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
             getApplication<Application>().bindService(intent, connection, Context.BIND_AUTO_CREATE)
             return
         }
-        service?.toggleTimer()
+        serviceRef.get()?.toggleTimer()
     }
 
-    fun resetAll() { service?.resetTimer(workLengthMinutes) }
-    fun skipNext() { service?.skipNext() }
+    fun resetAll() { serviceRef.get()?.resetTimer(workLengthMinutes) }
+    fun skipNext() { serviceRef.get()?.skipNext() }
 
     fun updateWorkLength(minutes: Int) {
         viewModelScope.launch { dataStore.saveWorkLength(maxOf(1, minutes)) }

@@ -130,7 +130,14 @@ fun InlineSetting(label: String, value: Int, onValueChange: (Int) -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val viewModel = PomodoroViewModel(context.applicationContext as android.app.Application)
+    val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<PomodoroViewModel>(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                return PomodoroViewModel(context.applicationContext as android.app.Application) as T
+            }
+        }
+    )
     com.example.pomodorotimer.presentation.theme.PomodoroTimerTheme {
         SettingsScreen(viewModel = viewModel)
     }

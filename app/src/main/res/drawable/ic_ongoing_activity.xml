@@ -11,7 +11,7 @@
     
     <!-- Simplified Stem (Green) -->
     <path
-        android:fillColor="#81C784"
+        android:fillColor="#FFFFFF"
         android:pathData="M12,7.5l0.8,-2.5l-0.8,1.2l-0.8,-1.2z" />
     
     <!-- Simple Timer Dot (White) -->

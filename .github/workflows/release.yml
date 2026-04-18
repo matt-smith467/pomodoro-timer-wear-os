@@ -67,11 +67,15 @@ jobs:
       run: |
         sed -i "s/versionName = .*/versionName = \"${{ github.event.inputs.versionName }}\"/" app/build.gradle.kts
 
-    - name: Build Release Bundle (AAB)
-      run: gradle :app:bundleRelease --configuration-cache
+    - name: Build Release Artifacts
+      run: |
+        echo "::group::Build Bundle (AAB)"
+        gradle :app:bundleRelease --configuration-cache
+        echo "::endgroup::"
 
-    - name: Build Release APK
-      run: gradle :app:assembleRelease --configuration-cache
+        echo "::group::Build APK"
+        gradle :app:assembleRelease --configuration-cache
+        echo "::endgroup::"
 
     - name: Sign Artifacts
       uses: r0adkll/sign-android-release@v1

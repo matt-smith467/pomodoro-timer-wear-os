@@ -28,14 +28,6 @@ jobs:
       with:
         gradle-version: wrapper
 
-    - name: Run Format Check
-      run: gradle spotlessCheck --configuration-cache
-
-    - name: Run Full Lint Check
-      run: gradle lint --configuration-cache
-
-    - name: Run Unit Tests
-      run: gradle testDebugUnitTest --configuration-cache
-
-    - name: Build Debug APK
-      run: gradle assembleDebug --configuration-cache --scan
+    - name: Run Verification Suite
+      run: |
+        gradle spotlessCheck lint testDebugUnitTest assembleDebug --configuration-cache --scan

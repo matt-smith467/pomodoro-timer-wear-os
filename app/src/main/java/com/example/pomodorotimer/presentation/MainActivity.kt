@@ -6,21 +6,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -30,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +40,7 @@ import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ButtonGroup
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
@@ -195,77 +190,70 @@ fun PomodoroButtonGroup(
     val screenWidth = configuration.screenWidthDp.dp
     val groupHeight = screenWidth * 0.28f
 
-    Row(
+    val interactionSource1 = remember { MutableInteractionSource() }
+    val interactionSource2 = remember { MutableInteractionSource() }
+    val interactionSource3 = remember { MutableInteractionSource() }
+
+    ButtonGroup(
         modifier =
             Modifier
                 .fillMaxWidth(0.85f)
                 .height(groupHeight),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
-        GroupButton(
-            weight = 1.0f,
+        Button(
             onClick = onReset,
-            icon = Icons.Default.Refresh,
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentDescription = "Reset",
-        )
+            modifier = Modifier.animateWidth(interactionSource1),
+            interactionSource = interactionSource1,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reset",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
 
-        GroupButton(
-            weight = 1.3f,
+        Button(
             onClick = onToggle,
-            icon = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
-            shape = RoundedCornerShape(24.dp),
-            containerColor =
-                if (isRunning) {
-                    MaterialTheme.colorScheme.tertiaryContainer
-                } else {
-                    MaterialTheme.colorScheme.primaryContainer
-                },
-            isLarge = true,
-            contentDescription = if (isRunning) "Pause" else "Play",
-        )
+            modifier = Modifier.weight(1.3f).animateWidth(interactionSource2),
+            interactionSource = interactionSource2,
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor =
+                        if (isRunning) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer
+                        },
+                ),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isRunning) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp),
+                )
+            }
+        }
 
-        GroupButton(
-            weight = 1.0f,
+        Button(
             onClick = onSkip,
-            icon = PomodoroIcons.SkipNext,
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentDescription = "Skip",
-        )
-    }
-}
-
-@Composable
-fun RowScope.GroupButton(
-    weight: Float,
-    onClick: () -> Unit,
-    icon: ImageVector,
-    shape: Shape,
-    containerColor: Color,
-    isLarge: Boolean = false,
-    contentDescription: String? = null,
-) {
-    Button(
-        onClick = onClick,
-        modifier =
-            Modifier
-                .weight(weight)
-                .fillMaxHeight(),
-        shape = shape,
-        colors = ButtonDefaults.buttonColors(containerColor = containerColor),
-        contentPadding = PaddingValues(0.dp),
-    ) {
-        // Centering content inside the weighted button
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = Color.White,
-                modifier = Modifier.size(if (isLarge) 32.dp else 24.dp),
-            )
+            modifier = Modifier.animateWidth(interactionSource3),
+            interactionSource = interactionSource3,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = PomodoroIcons.SkipNext,
+                    contentDescription = "Skip",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
     }
 }

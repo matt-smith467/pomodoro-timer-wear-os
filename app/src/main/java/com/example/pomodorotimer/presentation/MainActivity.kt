@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -34,7 +33,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.CurvedDirection
 import androidx.wear.compose.foundation.CurvedLayout
 import androidx.wear.compose.foundation.CurvedTextStyle
-import androidx.wear.compose.foundation.padding
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.AppScaffold

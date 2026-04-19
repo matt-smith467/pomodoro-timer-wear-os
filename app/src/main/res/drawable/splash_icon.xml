@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Background Circle (White or Light Blue) -->
+    <!-- Background Circle (Red) -->
     <item
         android:width="160dp"
         android:height="160dp"
         android:gravity="center">
         <shape android:shape="oval">
-            <solid android:color="#FFFFFF" />
+            <solid android:color="#FFB4AB" />
         </shape>
     </item>
     
-    <!-- Hybrid Tomato & Timer Vector -->
+    <!-- Timer Vector -->
     <item
         android:width="120dp"
         android:height="120dp"
@@ -20,39 +20,29 @@
             android:height="120dp"
             android:viewportWidth="108"
             android:viewportHeight="108">
-            
-            <!-- Tomato Body (Tertiary Red) -->
-            <path
-                android:fillColor="#FFB4AB"
-                android:pathData="M54,32c-15,0 -28,8 -28,24c0,16 13,24 28,24c15,0 28,-8 28,-24C82,40 69,32 54,32z" />
-            
-            <!-- Shading/Highlight on Tomato -->
-            <path
-                android:fillColor="#22000000"
-                android:pathData="M54,80c-15,0 -28,-8 -28,-24c0,-2 0.3,-4 0.8,-6c3.2,16 14.2,26 27.2,26c13,0 24,-10 27.2,-26c0.5,2 0.8,4 0.8,6C82,72 69,80 54,80z" />
-
-            <!-- Stem (Green) -->
-            <path
-                android:fillColor="#81C784"
-                android:pathData="M54,34l4,-12l-4,6l-4,-6z M54,28c-2,0 -4,1 -6,3l6,-3l6,3c-2,-2 -4,-3 -6,-3z" />
-            
-            <!-- Timer Dial Ring (White Overlay) -->
-            <path
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.5"
-                android:pathData="M54,42a14,14 0 1 1 0,28a14,14 0 1 1 0,-28" />
-
-            <!-- Timer Hand (White) -->
-            <path
-                android:fillColor="#FFFFFF"
-                android:pathData="M54,56l0,-12l-1,0l0,12z" />
-                
-            <!-- Dial Tick Marks -->
-            <path
-                android:fillColor="#FFFFFF"
-                android:pathData="M54,40l0,2 M54,70l0,-2 M40,56l2,0 M68,56l-2,0" />
-
+            <group
+                android:translateX="6"
+                android:translateY="6"
+                android:scaleX="4.0"
+                android:scaleY="4.0">
+                <path
+                    android:fillColor="#00000000"
+                    android:strokeColor="#FFFFFF"
+                    android:strokeWidth="2"
+                    android:strokeLineCap="round"
+                    android:pathData="M10,2 L14,2" />
+                <path
+                    android:fillColor="#00000000"
+                    android:strokeColor="#FFFFFF"
+                    android:strokeWidth="2"
+                    android:pathData="M12,13m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
+                <path
+                    android:fillColor="#00000000"
+                    android:strokeColor="#FFFFFF"
+                    android:strokeWidth="2"
+                    android:strokeLineCap="round"
+                    android:pathData="M12,13 L15,10" />
+            </group>
         </vector>
     </item>
 </layer-list>

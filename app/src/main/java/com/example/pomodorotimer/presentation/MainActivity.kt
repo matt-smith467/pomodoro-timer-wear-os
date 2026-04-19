@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -210,7 +211,7 @@ fun PomodoroButtonGroup(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Reset",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.requiredSize(24.dp),
                 )
             }
         }
@@ -234,7 +235,7 @@ fun PomodoroButtonGroup(
                     imageVector = if (isRunning) PomodoroIcons.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isRunning) "Pause" else "Play",
                     tint = Color.White,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.requiredSize(32.dp),
                 )
             }
         }
@@ -250,7 +251,7 @@ fun PomodoroButtonGroup(
                     imageVector = PomodoroIcons.SkipNext,
                     contentDescription = "Skip",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.requiredSize(24.dp),
                 )
             }
         }

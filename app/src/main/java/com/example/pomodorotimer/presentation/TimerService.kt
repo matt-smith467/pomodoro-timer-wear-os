@@ -252,7 +252,21 @@ class TimerService : Service() {
 
         saveState()
 
+        val nextName =
+            when (_currentSession.value) {
+                SessionType.WORK -> "Work"
+                SessionType.SHORT_REST -> "Short break"
+                SessionType.LONG_REST -> "Long break"
+            }
+
         if (wasRunning && autoStart) {
+            // Post an alert notification even when auto-starting, so the user knows a new session began.
+            try {
+                nm.notify(ALERT_ID, buildAlertNotification("$finishedName complete!", "Next: $nextName starting..."))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to post alert notification during auto-start", e)
+            }
+
             // Keep the foreground service running; replace the notification with the next session.
             serviceScope.launch {
                 delay(300L)
@@ -262,12 +276,6 @@ class TimerService : Service() {
             // Remove foreground + ongoing activity.
             stopForegroundSafely()
 
-            val nextName =
-                when (_currentSession.value) {
-                    SessionType.WORK -> "Work"
-                    SessionType.SHORT_REST -> "Short break"
-                    SessionType.LONG_REST -> "Long break"
-                }
             try {
                 nm.notify(ALERT_ID, buildAlertNotification("$finishedName complete!", "Next: $nextName"))
             } catch (e: Exception) {

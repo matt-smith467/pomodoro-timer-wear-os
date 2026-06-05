@@ -48,6 +48,7 @@ private val CrystalBlueColorScheme =
 fun PomodoroTimerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = CrystalBlueColorScheme,
+        typography = Typography,
         content = content,
     )
 }

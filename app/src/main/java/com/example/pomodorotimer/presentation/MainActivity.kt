@@ -26,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,6 +43,8 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.curvedText
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
+import com.example.pomodorotimer.presentation.theme.GoogleSansFlexBody
+import com.example.pomodorotimer.presentation.theme.GoogleSansFlexHeadline
 import com.example.pomodorotimer.presentation.theme.PomodoroTimerTheme
 
 class MainActivity : ComponentActivity() {
@@ -130,7 +131,11 @@ fun PomodoroContent(
         CurvedLayout(anchor = 270f, modifier = Modifier.padding(10.dp)) {
             curvedText(
                 text = sessionText,
-                style = CurvedTextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                style = CurvedTextStyle(
+                    fontSize = 14.sp,
+                    fontFamily = GoogleSansFlexHeadline,
+                    color = Color.White
+                ),
             )
         }
 
@@ -141,7 +146,11 @@ fun PomodoroContent(
         ) {
             curvedText(
                 text = nextText,
-                style = CurvedTextStyle(fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f)),
+                style = CurvedTextStyle(
+                    fontSize = 11.sp,
+                    fontFamily = GoogleSansFlexBody,
+                    color = Color.White.copy(alpha = 0.7f)
+                ),
             )
         }
 

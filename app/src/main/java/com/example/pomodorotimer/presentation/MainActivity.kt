@@ -131,11 +131,12 @@ fun PomodoroContent(
         CurvedLayout(anchor = 270f, modifier = Modifier.padding(10.dp)) {
             curvedText(
                 text = sessionText,
-                style = CurvedTextStyle(
-                    fontSize = 14.sp,
-                    fontFamily = GoogleSansFlexHeadline,
-                    color = Color.White
-                ),
+                style =
+                    CurvedTextStyle(
+                        fontSize = 14.sp,
+                        fontFamily = GoogleSansFlexHeadline,
+                        color = Color.White,
+                    ),
             )
         }
 
@@ -146,11 +147,12 @@ fun PomodoroContent(
         ) {
             curvedText(
                 text = nextText,
-                style = CurvedTextStyle(
-                    fontSize = 11.sp,
-                    fontFamily = GoogleSansFlexBody,
-                    color = Color.White.copy(alpha = 0.7f)
-                ),
+                style =
+                    CurvedTextStyle(
+                        fontSize = 11.sp,
+                        fontFamily = GoogleSansFlexBody,
+                        color = Color.White.copy(alpha = 0.7f),
+                    ),
             )
         }
 
